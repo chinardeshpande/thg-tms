@@ -1,0 +1,40 @@
+{
+  "name": "thg-tms",
+  "version": "1.0.0",
+  "description": "THG Ingenuity Transport Management System",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "migrate": "npm run migrate --workspace=backend",
+    "seed": "npm run seed --workspace=backend"
+  },
+  "keywords": [
+    "tms",
+    "logistics",
+    "transport",
+    "thg",
+    "ingenuity"
+  ],
+  "author": "THG Ingenuity",
+  "license": "PROPRIETARY",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

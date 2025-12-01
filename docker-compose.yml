@@ -1,0 +1,194 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - Primary Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: thg-tms-postgres
+    environment:
+      POSTGRES_DB: thg_tms
+      POSTGRES_USER: tms_admin
+      POSTGRES_PASSWORD: tms_secure_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/scripts:/docker-entrypoint-initdb.d
+    networks:
+      - tms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tms_admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Cache & Sessions
+  redis:
+    image: redis:7-alpine
+    container_name: thg-tms-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - tms-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB - IoT Telemetry
+  mongodb:
+    image: mongo:6
+    container_name: thg-tms-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: tms_admin
+      MONGO_INITDB_ROOT_PASSWORD: tms_secure_password
+      MONGO_INITDB_DATABASE: tms_telemetry
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - tms-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Apache Kafka - Event Streaming
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: thg-tms-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - tms-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: thg-tms-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - tms-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MQTT Broker - IoT Gateway
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: thg-tms-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./infrastructure/docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    networks:
+      - tms-network
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: thg-tms-backend
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://tms_admin:tms_secure_password@postgres:5432/thg_tms
+      REDIS_URL: redis://redis:6379
+      MONGODB_URL: mongodb://tms_admin:tms_secure_password@mongodb:27017/tms_telemetry
+      KAFKA_BROKERS: kafka:9092
+      MQTT_BROKER: mqtt://mosquitto:1883
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - tms-network
+    command: npm run dev
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: thg-tms-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:3000/api
+      VITE_WS_URL: ws://localhost:3000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - tms-network
+    command: npm run dev
+
+  # Nginx - Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: thg-tms-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./infrastructure/docker/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - tms-network
+
+networks:
+  tms-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  mongodb_data:
+  mosquitto_data:
+  mosquitto_logs:

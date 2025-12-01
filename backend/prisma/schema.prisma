@@ -1,0 +1,756 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION MODELS
+// ============================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  avatar    String?
+  role      UserRole @default(CLIENT_USER)
+  status    UserStatus @default(PENDING)
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  // Relations
+  refreshTokens RefreshToken[]
+  drivers       Driver[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+enum UserRole {
+  ADMIN
+  LOGISTICS_MANAGER
+  CARRIER_OPERATOR
+  FLEET_MANAGER
+  CLIENT_USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SUSPENDED
+}
+
+// ============================================
+// COMPANY MODELS
+// ============================================
+
+model Company {
+  id         String        @id @default(uuid())
+  name       String
+  businessId String        @unique
+  taxId      String
+  email      String
+  phone      String
+  website    String?
+  status     CompanyStatus @default(PENDING)
+
+  // Address
+  street      String
+  street2     String?
+  city        String
+  state       String
+  postalCode  String
+  country     String
+  latitude    Float?
+  longitude   Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users     User[]
+  shipments Shipment[]
+
+  @@map("companies")
+}
+
+enum CompanyStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  INACTIVE
+}
+
+// ============================================
+// SHIPMENT MODELS
+// ============================================
+
+model Shipment {
+  id              String           @id @default(uuid())
+  referenceNumber String           @unique
+  type            ShipmentType
+  status          ShipmentStatus   @default(DRAFT)
+  priority        ShipmentPriority @default(MEDIUM)
+  serviceLevel    ServiceLevel     @default(STANDARD)
+
+  // Origin
+  originStreet      String
+  originStreet2     String?
+  originCity        String
+  originState       String
+  originPostalCode  String
+  originCountry     String
+  originLatitude    Float?
+  originLongitude   Float?
+  originWarehouseId String?
+
+  // Destination
+  destStreet      String
+  destStreet2     String?
+  destCity        String
+  destState       String
+  destPostalCode  String
+  destCountry     String
+  destLatitude    Float?
+  destLongitude   Float?
+  destWarehouseId String?
+
+  // Carrier
+  carrierId          String?
+  carrier            Carrier?         @relation(fields: [carrierId], references: [id])
+  carrierServiceCode String?
+  trackingNumber     String?          @unique
+
+  // Package Info
+  totalWeight      Float
+  totalVolume      Float
+  weightUnit       WeightUnit
+  dimensionUnit    DimensionUnit
+
+  // Dates
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  scheduledPickupDate  DateTime?
+  actualPickupDate     DateTime?
+  estimatedDeliveryDate DateTime?
+  actualDeliveryDate   DateTime?
+
+  // Customer
+  customerId    String
+  company       Company @relation(fields: [customerId], references: [id])
+  customerName  String
+  customerEmail String?
+  customerPhone String?
+
+  // Financial
+  declaredValue  Float?
+  currency       String   @default("GBP")
+  freightCost    Float?
+  insuranceCost  Float?
+  totalCost      Float?
+
+  // Additional
+  specialInstructions      String?
+  requiresSignature        Boolean @default(false)
+  isHazmat                 Boolean @default(false)
+  isFragile                Boolean @default(false)
+  isTemperatureControlled  Boolean @default(false)
+  temperatureMin           Float?
+  temperatureMax           Float?
+  temperatureUnit          String?
+
+  metadata Json?
+
+  // Relations
+  packages       Package[]
+  documents      ShipmentDocument[]
+  trackingEvents ShipmentTracking[]
+  routeStops     RouteStop[]
+  invoices       Invoice[]
+
+  @@map("shipments")
+}
+
+model Package {
+  id             String  @id @default(uuid())
+  shipmentId     String
+  shipment       Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  packageNumber  Int
+  trackingNumber String?
+
+  // Dimensions
+  length Float
+  width  Float
+  height Float
+  weight Float
+
+  description String
+  labelUrl    String?
+  labelFormat LabelFormat?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  items      PackageItem[]
+  routeStops RouteStop[]
+
+  @@unique([shipmentId, packageNumber])
+  @@map("packages")
+}
+
+model PackageItem {
+  id              String  @id @default(uuid())
+  packageId       String
+  package         Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  sku             String
+  description     String
+  quantity        Int
+  unitPrice       Float?
+  weight          Float?
+  hsCode          String?
+  countryOfOrigin String?
+
+  @@map("package_items")
+}
+
+model ShipmentDocument {
+  id         String       @id @default(uuid())
+  shipmentId String
+  shipment   Shipment     @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  type       DocumentType
+  name       String
+  url        String
+  format     String
+  uploadedAt DateTime     @default(now())
+  uploadedBy String
+
+  @@map("shipment_documents")
+}
+
+model ShipmentTracking {
+  id          String         @id @default(uuid())
+  shipmentId  String
+  shipment    Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  packageId   String?
+
+  status      ShipmentStatus
+  description String
+
+  // Location
+  locationStreet   String?
+  locationCity     String?
+  locationState    String?
+  locationCountry  String?
+  latitude         Float?
+  longitude        Float?
+  facility         String?
+  facilityType     FacilityType?
+
+  timestamp  DateTime @default(now())
+  createdBy  String?
+  metadata   Json?
+
+  @@map("shipment_tracking")
+}
+
+enum ShipmentType {
+  INBOUND
+  OUTBOUND
+  RETURN
+  STOCK_TRANSFER
+}
+
+enum ShipmentStatus {
+  DRAFT
+  PENDING
+  CONFIRMED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED
+  CANCELLED
+  RETURNED
+}
+
+enum ShipmentPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ServiceLevel {
+  STANDARD
+  EXPRESS
+  SAME_DAY
+  NEXT_DAY
+  TWO_DAY
+}
+
+enum WeightUnit {
+  KG
+  LB
+  G
+  OZ
+}
+
+enum DimensionUnit {
+  CM
+  IN
+  M
+  FT
+}
+
+enum DocumentType {
+  LABEL
+  BOL
+  ASN
+  INVOICE
+  PACKING_LIST
+  CUSTOMS_DECLARATION
+  EXPORT_DECLARATION
+  CERTIFICATE_OF_ORIGIN
+  OTHER
+}
+
+enum LabelFormat {
+  PDF
+  ZPL
+  PNG
+  JPEG
+}
+
+enum FacilityType {
+  WAREHOUSE
+  DISTRIBUTION_CENTER
+  SORTING_CENTER
+  DELIVERY_STATION
+  CUSTOMER_LOCATION
+}
+
+// ============================================
+// CARRIER MODELS
+// ============================================
+
+model Carrier {
+  id          String        @id @default(uuid())
+  code        String        @unique
+  name        String
+  type        CarrierType
+  status      CarrierStatus @default(ACTIVE)
+  email       String
+  phone       String
+  website     String?
+  apiEndpoint String?
+  apiKey      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  services      CarrierService[]
+  rates         CarrierRate[]
+  contracts     CarrierContract[]
+  tenderRequests TenderRequest[]
+  shipments     Shipment[]
+
+  @@map("carriers")
+}
+
+model CarrierService {
+  id          String  @id @default(uuid())
+  carrierId   String
+  carrier     Carrier @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+
+  code        String
+  name        String
+  description String?
+  serviceLevel String
+  transitTime Int // in hours
+  cutoffTime  String?
+
+  baseRate    Float
+  currency    String  @default("GBP")
+
+  maxWeight      Float?
+  maxLength      Float?
+  maxWidth       Float?
+  maxHeight      Float?
+
+  isActive    Boolean @default(true)
+
+  @@unique([carrierId, code])
+  @@map("carrier_services")
+}
+
+model CarrierRate {
+  id               String  @id @default(uuid())
+  carrierId        String
+  carrier          Carrier @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  serviceId        String
+
+  originZone       String
+  destinationZone  String
+  weightFrom       Float
+  weightTo         Float
+  rate             Float
+  currency         String  @default("GBP")
+
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+
+  @@map("carrier_rates")
+}
+
+model CarrierContract {
+  id             String         @id @default(uuid())
+  carrierId      String
+  carrier        Carrier        @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+
+  contractNumber String         @unique
+  startDate      DateTime
+  endDate        DateTime
+  status         ContractStatus
+  minimumVolume  Int?
+  discountTier   Float?
+  terms          String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("carrier_contracts")
+}
+
+model TenderRequest {
+  id                     String       @id @default(uuid())
+  shipmentId             String
+  carrierId              String
+  carrier                Carrier      @relation(fields: [carrierId], references: [id])
+  status                 TenderStatus @default(PENDING)
+
+  requestedAt            DateTime     @default(now())
+  respondedAt            DateTime?
+  expiresAt              DateTime
+
+  quotedRate             Float?
+  currency               String?
+  estimatedPickupDate    DateTime?
+  estimatedDeliveryDate  DateTime?
+  notes                  String?
+
+  @@map("tender_requests")
+}
+
+enum CarrierType {
+  COURIER
+  FREIGHT
+  PARCEL
+  LTL
+  FTL
+  LAST_MILE
+}
+
+enum CarrierStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+enum TenderStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+// ============================================
+// ROUTE & FLEET MODELS
+// ============================================
+
+model Route {
+  id          String      @id @default(uuid())
+  routeNumber String      @unique
+  status      RouteStatus @default(PLANNED)
+
+  vehicleId   String?
+  vehicle     Vehicle?    @relation(fields: [vehicleId], references: [id])
+  vehicleType VehicleType
+
+  driverId    String?
+  driver      Driver?     @relation(fields: [driverId], references: [id])
+  driverName  String?
+
+  totalDistance Float
+  totalDuration Float
+  distanceUnit  String @default("km")
+
+  isOptimized       Boolean   @default(false)
+  optimizedAt       DateTime?
+  optimizationScore Float?
+
+  plannedStartTime DateTime
+  plannedEndTime   DateTime
+  actualStartTime  DateTime?
+  actualEndTime    DateTime?
+
+  totalWeight   Float
+  totalVolume   Float
+  totalPackages Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  metadata  Json?
+
+  // Relations
+  stops RouteStop[]
+
+  @@map("routes")
+}
+
+model RouteStop {
+  id             String     @id @default(uuid())
+  routeId        String
+  route          Route      @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  sequenceNumber Int
+  stopType       StopType
+  status         StopStatus @default(PENDING)
+
+  // Location
+  street      String
+  street2     String?
+  city        String
+  state       String
+  postalCode  String
+  country     String
+  latitude    Float?
+  longitude   Float?
+  facilityId  String?
+
+  // Timing
+  plannedArrivalTime   DateTime
+  plannedDepartureTime DateTime
+  actualArrivalTime    DateTime?
+  actualDepartureTime  DateTime?
+  serviceTime          Int // in minutes
+
+  completedAt DateTime?
+  notes       String?
+
+  // Contact
+  contactName  String?
+  contactPhone String?
+
+  metadata Json?
+
+  // Relations
+  shipments Shipment[]
+  packages  Package[]
+
+  @@map("route_stops")
+}
+
+model Vehicle {
+  id            String        @id @default(uuid())
+  vehicleNumber String        @unique
+  type          VehicleType
+  licensePlate  String        @unique
+  status        VehicleStatus @default(AVAILABLE)
+
+  make  String
+  model String
+  year  Int
+  color String?
+
+  maxWeight   Float
+  maxVolume   Float
+  maxPallets  Int?
+
+  gpsDeviceId        String?
+  currentLatitude    Float?
+  currentLongitude   Float?
+  lastLocationUpdate DateTime?
+
+  assignedDriverId String?
+  assignedRouteId  String?
+
+  lastMaintenanceDate DateTime?
+  nextMaintenanceDate DateTime?
+  mileage             Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  routes Route[]
+
+  @@map("vehicles")
+}
+
+model Driver {
+  id             String       @id @default(uuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  driverNumber   String       @unique
+  licenseNumber  String
+  licenseExpiry  DateTime
+  status         DriverStatus @default(ACTIVE)
+
+  assignedVehicleId String?
+  assignedRouteId   String?
+  currentLatitude   Float?
+  currentLongitude  Float?
+
+  totalDeliveries     Int   @default(0)
+  onTimeDeliveryRate  Float @default(0)
+  averageRating       Float @default(0)
+  totalMilesDriven    Float @default(0)
+  metricsLastUpdated  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  routes Route[]
+
+  @@map("drivers")
+}
+
+enum RouteStatus {
+  PLANNED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum VehicleType {
+  VAN
+  TRUCK
+  CARGO_VAN
+  BOX_TRUCK
+  SEMI_TRUCK
+  MOTORCYCLE
+  BICYCLE
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+enum DriverStatus {
+  ACTIVE
+  ON_DUTY
+  OFF_DUTY
+  BREAK
+  INACTIVE
+}
+
+enum StopType {
+  PICKUP
+  DELIVERY
+  PICKUP_AND_DELIVERY
+}
+
+enum StopStatus {
+  PENDING
+  EN_ROUTE
+  ARRIVED
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+// ============================================
+// BILLING MODELS
+// ============================================
+
+model Invoice {
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique
+  shipmentId    String
+  shipment      Shipment      @relation(fields: [shipmentId], references: [id])
+
+  status        InvoiceStatus @default(PENDING)
+
+  subtotal      Float
+  tax           Float
+  total         Float
+  currency      String        @default("GBP")
+
+  dueDate       DateTime
+  paidAt        DateTime?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  action    String
+  entity    String
+  entityId  String
+  changes   Json?
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}

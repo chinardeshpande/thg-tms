@@ -1,0 +1,219 @@
+/* Compact Professional Design System */
+
+/* Reduce base font sizes for better information density */
+body {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Headings - More compact */
+h1 {
+  font-size: 1.75rem !important;
+  line-height: 1.2 !important;
+  margin-bottom: 0.375rem !important;
+}
+
+h2 {
+  font-size: 1.375rem !important;
+  line-height: 1.3 !important;
+}
+
+h3 {
+  font-size: 1.125rem !important;
+  line-height: 1.3 !important;
+}
+
+h4 {
+  font-size: 1rem !important;
+  line-height: 1.3 !important;
+}
+
+/* Compact Card Spacing */
+.card-compact {
+  padding: 0.875rem !important;
+}
+
+.card-header-compact {
+  padding: 0.75rem 1rem !important;
+}
+
+/* Reduce spacing between sections */
+.section-spacing {
+  margin-bottom: 1rem !important;
+}
+
+/* Compact stats cards */
+.stat-card {
+  padding: 0.875rem !important;
+}
+
+.stat-value {
+  font-size: 1.625rem !important;
+  line-height: 1.2 !important;
+}
+
+.stat-label {
+  font-size: 0.75rem !important;
+}
+
+/* Compact buttons */
+.btn-compact {
+  padding: 0.5rem 0.875rem !important;
+  font-size: 0.813rem !important;
+}
+
+.btn-sm-compact {
+  padding: 0.375rem 0.625rem !important;
+  font-size: 0.75rem !important;
+}
+
+/* Compact form inputs */
+.input-compact {
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.875rem !important;
+  height: 2.25rem !important;
+}
+
+/* Compact tables */
+.table-compact th,
+.table-compact td {
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.813rem !important;
+}
+
+.table-compact th {
+  font-size: 0.688rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+/* Compact badges/tags */
+.badge-compact {
+  padding: 0.125rem 0.5rem !important;
+  font-size: 0.688rem !important;
+}
+
+/* Compact icon sizing */
+.icon-sm {
+  width: 0.875rem !important;
+  height: 0.875rem !important;
+}
+
+.icon-md {
+  width: 1rem !important;
+  height: 1rem !important;
+}
+
+.icon-lg {
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+}
+
+/* Reduce grid gaps */
+.grid-compact {
+  gap: 0.875rem !important;
+}
+
+/* Compact navigation tabs */
+.tab-compact {
+  padding: 0.5rem 0.875rem !important;
+  font-size: 0.813rem !important;
+}
+
+/* Tighter line heights for better density */
+p, div, span {
+  line-height: 1.4;
+}
+
+/* Compact search bars */
+.search-compact {
+  height: 2.25rem !important;
+  font-size: 0.875rem !important;
+}
+
+/* Status badges */
+.status-badge {
+  padding: 0.188rem 0.5rem !important;
+  font-size: 0.688rem !important;
+  font-weight: 600;
+}
+
+/* Compact dropdown menus */
+select.compact {
+  padding: 0.5rem 2rem 0.5rem 0.75rem !important;
+  font-size: 0.875rem !important;
+  height: 2.25rem !important;
+}
+
+/* Compact modal/dialog spacing */
+.modal-compact .modal-header {
+  padding: 0.875rem 1rem !important;
+}
+
+.modal-compact .modal-body {
+  padding: 1rem !important;
+}
+
+/* Professional shadows - subtle */
+.shadow-compact {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+.shadow-compact-md {
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Reduce margin between page elements */
+.page-header {
+  margin-bottom: 1.25rem !important;
+}
+
+.page-title {
+  font-size: 1.75rem !important;
+  margin-bottom: 0.25rem !important;
+}
+
+.page-subtitle {
+  font-size: 0.875rem !important;
+  color: #6B7280;
+}
+
+/* Compact sidebar */
+.sidebar-item {
+  padding: 0.5rem 0.875rem !important;
+  font-size: 0.875rem !important;
+}
+
+/* Scrollbar styling for better UX */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Transitions for smooth interactions */
+* {
+  transition-duration: 150ms;
+}
+
+/* Focus states for accessibility */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}

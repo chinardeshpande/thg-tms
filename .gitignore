@@ -1,0 +1,86 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+*.lcov
+.nyc_output
+
+# Production
+build/
+dist/
+*.log
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build artifacts
+.turbo/
+.next/
+out/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfvars
+
+# Certificates
+*.pem
+*.key
+*.crt
+
+# Blockchain
+blockchain/data/
+blockchain/logs/
