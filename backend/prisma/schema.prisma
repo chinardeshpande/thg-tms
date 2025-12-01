@@ -15,48 +15,108 @@ datasource db {
 // ============================================
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  firstName String
-  lastName  String
-  phone     String?
-  avatar    String?
-  role      UserRole @default(CLIENT_USER)
-  status    UserStatus @default(PENDING)
+  id                  String     @id @default(uuid())
+  email               String     @unique
+  emailVerified       Boolean    @default(false)
+  emailVerifiedAt     DateTime?
+  password            String
+  firstName           String
+  lastName            String
+  phone               String?
+  avatar              String?
+  role                UserRole   @default(CLIENT_USER)
+  status              UserStatus @default(PENDING)
 
+  // Company
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  lastLoginAt DateTime?
+  // Security
+  mfaEnabled          Boolean   @default(false)
+  mfaSecret           String?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  passwordChangedAt   DateTime?
+
+  // Soft delete
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  refreshTokens RefreshToken[]
-  drivers       Driver[]
-  auditLogs     AuditLog[]
+  sessions          Session[]
+  refreshTokens     RefreshToken[]
+  drivers           Driver[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  createdShipments  Shipment[]           @relation("CreatedBy")
+  assignedShipments Shipment[]           @relation("AssignedTo")
 
+  @@index([email])
+  @@index([companyId])
+  @@index([role])
+  @@index([status])
   @@map("users")
 }
 
-model RefreshToken {
+model Session {
   id        String   @id @default(uuid())
-  token     String   @unique
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
   expiresAt DateTime
+  ipAddress String
+  userAgent String?
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String    @unique
+  expiresAt  DateTime
+  isRevoked  Boolean   @default(false)
+  replacedBy String?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([token])
   @@map("refresh_tokens")
 }
 
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  resource    String
+  action      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("permissions")
+}
+
 enum UserRole {
+  SUPER_ADMIN
   ADMIN
   LOGISTICS_MANAGER
   CARRIER_OPERATOR
   FLEET_MANAGER
   CLIENT_USER
+  DRIVER
+  CARRIER_ADMIN
+  CARRIER_USER
+  VIEWER
 }
 
 enum UserStatus {
@@ -81,21 +141,23 @@ model Company {
   status     CompanyStatus @default(PENDING)
 
   // Address
-  street      String
-  street2     String?
-  city        String
-  state       String
-  postalCode  String
-  country     String
-  latitude    Float?
-  longitude   Float?
+  street     String
+  street2    String?
+  city       String
+  state      String
+  postalCode String
+  country    String
+  latitude   Float?
+  longitude  Float?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   // Relations
   users     User[]
   shipments Shipment[]
+  carriers  Carrier[]
 
   @@map("companies")
 }
@@ -108,58 +170,166 @@ enum CompanyStatus {
 }
 
 // ============================================
-// SHIPMENT MODELS
+// ADDRESS & CONTACT MODELS
+// ============================================
+
+model Address {
+  id          String      @id @default(uuid())
+  line1       String
+  line2       String?
+  city        String
+  state       String
+  postalCode  String
+  country     String      @default("GB")
+  latitude    Float?
+  longitude   Float?
+  type        AddressType
+  facilityId  String?
+  contactName String?
+  phone       String?
+  email       String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  shipmentsOrigin      Shipment[] @relation("ShipmentOrigin")
+  shipmentsDestination Shipment[] @relation("ShipmentDestination")
+
+  @@index([city])
+  @@index([state])
+  @@index([postalCode])
+  @@map("addresses")
+}
+
+enum AddressType {
+  WAREHOUSE
+  CUSTOMER
+  CARRIER
+  TERMINAL
+  DISTRIBUTION_CENTER
+}
+
+model Contact {
+  id        String  @id @default(uuid())
+  firstName String
+  lastName  String
+  company   String?
+  email     String?
+  phone     String
+  role      String?
+  notes     String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  shipmentsAsShipper   Shipment[] @relation("Shipper")
+  shipmentsAsConsignee Shipment[] @relation("Consignee")
+  shipmentsAsBillTo    Shipment[] @relation("BillTo")
+
+  @@map("contacts")
+}
+
+// ============================================
+// SHIPMENT MODELS (ENHANCED)
 // ============================================
 
 model Shipment {
   id              String           @id @default(uuid())
-  referenceNumber String           @unique
+  shipmentNumber  String           @unique
+  referenceNumber String?
+  externalId      String?
   type            ShipmentType
   status          ShipmentStatus   @default(DRAFT)
   priority        ShipmentPriority @default(MEDIUM)
   serviceLevel    ServiceLevel     @default(STANDARD)
+  mode            TransportMode
 
-  // Origin
-  originStreet      String
-  originStreet2     String?
-  originCity        String
-  originState       String
-  originPostalCode  String
-  originCountry     String
-  originLatitude    Float?
-  originLongitude   Float?
-  originWarehouseId String?
+  // Origin & Destination with Address relations
+  originId      String
+  origin        Address @relation("ShipmentOrigin", fields: [originId], references: [id])
+  destinationId String
+  destination   Address @relation("ShipmentDestination", fields: [destinationId], references: [id])
 
-  // Destination
-  destStreet      String
-  destStreet2     String?
-  destCity        String
-  destState       String
-  destPostalCode  String
-  destCountry     String
-  destLatitude    Float?
-  destLongitude   Float?
-  destWarehouseId String?
+  // Parties
+  shipperId   String
+  shipper     Contact  @relation("Shipper", fields: [shipperId], references: [id])
+  consigneeId String
+  consignee   Contact  @relation("Consignee", fields: [consigneeId], references: [id])
+  billToId    String?
+  billTo      Contact? @relation("BillTo", fields: [billToId], references: [id])
 
-  // Carrier
-  carrierId          String?
-  carrier            Carrier?         @relation(fields: [carrierId], references: [id])
+  // Carrier & Route
+  carrierId String?
+  carrier   Carrier? @relation(fields: [carrierId], references: [id])
+  routeId   String?
+  route     Route?   @relation(fields: [routeId], references: [id])
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
+  driverId  String?
+  driver    Driver?  @relation(fields: [driverId], references: [id])
+
+  // Carrier details
   carrierServiceCode String?
-  trackingNumber     String?          @unique
+  trackingNumber     String? @unique
 
-  // Package Info
-  totalWeight      Float
-  totalVolume      Float
-  weightUnit       WeightUnit
-  dimensionUnit    DimensionUnit
+  // Cargo details
+  totalWeight  Float
+  totalVolume  Float?
+  totalValue   Float
+  currency     String @default("GBP")
+  packageCount Int
+  palletCount  Int?
+  weightUnit   WeightUnit
+  dimensionUnit DimensionUnit
 
-  // Dates
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  scheduledPickupDate  DateTime?
-  actualPickupDate     DateTime?
-  estimatedDeliveryDate DateTime?
-  actualDeliveryDate   DateTime?
+  // Dates & Times
+  pickupDate        DateTime?
+  pickupTimeStart   DateTime?
+  pickupTimeEnd     DateTime?
+  deliveryDate      DateTime?
+  deliveryTimeStart DateTime?
+  deliveryTimeEnd   DateTime?
+  estimatedArrival  DateTime?
+  actualPickup      DateTime?
+  actualDelivery    DateTime?
+
+  // Tracking
+  currentLocation Json?
+  iotDeviceId     String?
+
+  // Financial
+  declaredValue Float?
+  freightCost   Float?
+  insuranceCost Float?
+  totalCost     Float?
+  totalRevenue  Float?
+  margin        Float?
+  invoiced      Boolean @default(false)
+  paid          Boolean @default(false)
+
+  // Insurance & Risk
+  insuranceRequired Boolean @default(false)
+  insuranceAmount   Float?
+  insuranceProvider String?
+
+  // Special handling
+  requiresSignature     Boolean @default(false)
+  requiresAppointment   Boolean @default(false)
+  temperatureControlled Boolean @default(false)
+  temperatureMin        Float?
+  temperatureMax        Float?
+  temperatureUnit       String?
+  hazmat                Boolean @default(false)
+  fragile               Boolean @default(false)
+  specialInstructions   String?
+
+  // Metadata
+  tags         String[]
+  customFields Json?
 
   // Customer
   customerId    String
@@ -168,91 +338,74 @@ model Shipment {
   customerEmail String?
   customerPhone String?
 
-  // Financial
-  declaredValue  Float?
-  currency       String   @default("GBP")
-  freightCost    Float?
-  insuranceCost  Float?
-  totalCost      Float?
+  // User tracking
+  createdById  String
+  createdBy    User    @relation("CreatedBy", fields: [createdById], references: [id])
+  assignedToId String?
+  assignedTo   User?   @relation("AssignedTo", fields: [assignedToId], references: [id])
 
-  // Additional
-  specialInstructions      String?
-  requiresSignature        Boolean @default(false)
-  isHazmat                 Boolean @default(false)
-  isFragile                Boolean @default(false)
-  isTemperatureControlled  Boolean @default(false)
-  temperatureMin           Float?
-  temperatureMax           Float?
-  temperatureUnit          String?
-
-  metadata Json?
-
-  // Relations
-  packages       Package[]
-  documents      ShipmentDocument[]
-  trackingEvents ShipmentTracking[]
-  routeStops     RouteStop[]
-  invoices       Invoice[]
-
-  @@map("shipments")
-}
-
-model Package {
-  id             String  @id @default(uuid())
-  shipmentId     String
-  shipment       Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  packageNumber  Int
-  trackingNumber String?
-
-  // Dimensions
-  length Float
-  width  Float
-  height Float
-  weight Float
-
-  description String
-  labelUrl    String?
-  labelFormat LabelFormat?
+  // Soft delete
+  deletedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  items      PackageItem[]
-  routeStops RouteStop[]
+  items          ShipmentItem[]
+  documents      ShipmentDocument[]
+  trackingEvents ShipmentTracking[]
+  routeStops     RouteStop[]
+  invoices       Invoice[]
+  sensorReadings SensorReading[]
+  exceptions     Exception[]
+  delays         Delay[]
+  claims         Claim[]
+  notes          Note[]
 
-  @@unique([shipmentId, packageNumber])
-  @@map("packages")
+  @@index([shipmentNumber])
+  @@index([status])
+  @@index([carrierId])
+  @@index([pickupDate])
+  @@index([deliveryDate])
+  @@index([customerId])
+  @@index([createdById])
+  @@map("shipments")
 }
 
-model PackageItem {
-  id              String  @id @default(uuid())
-  packageId       String
-  package         Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+model ShipmentItem {
+  id            String   @id @default(uuid())
+  shipmentId    String
+  shipment      Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  sku           String?
+  description   String
+  quantity      Int
+  weight        Float
+  volume        Float?
+  value         Float?
+  dimensions    Json? // {length, width, height, unit}
+  packaging     String?
+  serialNumbers String[]
+  lotNumbers    String[]
+  expiryDate    DateTime?
+  hsCode        String?
 
-  sku             String
-  description     String
-  quantity        Int
-  unitPrice       Float?
-  weight          Float?
-  hsCode          String?
-  countryOfOrigin String?
-
-  @@map("package_items")
+  @@index([shipmentId])
+  @@map("shipment_items")
 }
 
 model ShipmentDocument {
   id         String       @id @default(uuid())
   shipmentId String
   shipment   Shipment     @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-
   type       DocumentType
   name       String
   url        String
   format     String
+  size       Int?
   uploadedAt DateTime     @default(now())
   uploadedBy String
 
+  @@index([shipmentId])
   @@map("shipment_documents")
 }
 
@@ -260,26 +413,101 @@ model ShipmentTracking {
   id          String         @id @default(uuid())
   shipmentId  String
   shipment    Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  packageId   String?
-
+  eventType   EventType
   status      ShipmentStatus
   description String
 
   // Location
-  locationStreet   String?
-  locationCity     String?
-  locationState    String?
-  locationCountry  String?
-  latitude         Float?
-  longitude        Float?
-  facility         String?
-  facilityType     FacilityType?
+  location    String?
+  coordinates Json? // {lat, lng}
+  facility    String?
 
-  timestamp  DateTime @default(now())
-  createdBy  String?
-  metadata   Json?
+  timestamp DateTime @default(now())
+  source    String // GPS, MANUAL, CARRIER_API, EDI
+  createdBy String?
+  metadata  Json?
 
+  @@index([shipmentId])
+  @@index([timestamp])
   @@map("shipment_tracking")
+}
+
+// IoT sensor readings
+model SensorReading {
+  id         String      @id @default(uuid())
+  shipmentId String
+  shipment   Shipment    @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  deviceId   String
+  sensorType SensorType
+  value      Float
+  unit       String
+  threshold  Float?
+  status     AlertStatus @default(NORMAL)
+  coordinates Json?
+  timestamp  DateTime    @default(now())
+
+  @@index([shipmentId])
+  @@index([deviceId])
+  @@index([timestamp])
+  @@map("sensor_readings")
+}
+
+model Exception {
+  id          String           @id @default(uuid())
+  shipmentId  String
+  shipment    Shipment         @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  type        ExceptionType
+  severity    ExceptionSeverity
+  description String
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  resolution  String?
+  createdAt   DateTime         @default(now())
+
+  @@index([shipmentId])
+  @@map("exceptions")
+}
+
+model Delay {
+  id          String   @id @default(uuid())
+  shipmentId  String
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  reason      String
+  duration    Int // minutes
+  impactedETA DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([shipmentId])
+  @@map("delays")
+}
+
+model Claim {
+  id          String      @id @default(uuid())
+  shipmentId  String
+  shipment    Shipment    @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  type        ClaimType
+  status      ClaimStatus
+  amount      Float
+  description String
+  filedAt     DateTime    @default(now())
+  resolvedAt  DateTime?
+  resolution  String?
+
+  @@index([shipmentId])
+  @@map("claims")
+}
+
+model Note {
+  id         String   @id @default(uuid())
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  content    String
+  createdBy  String
+  createdAt  DateTime @default(now())
+  isPrivate  Boolean  @default(false)
+
+  @@index([shipmentId])
+  @@map("notes")
 }
 
 enum ShipmentType {
@@ -293,12 +521,15 @@ enum ShipmentStatus {
   DRAFT
   PENDING
   CONFIRMED
+  ASSIGNED
+  PICKED_UP
   IN_TRANSIT
   OUT_FOR_DELIVERY
   DELIVERED
-  FAILED
+  EXCEPTION
   CANCELLED
   RETURNED
+  FAILED
 }
 
 enum ShipmentPriority {
@@ -314,6 +545,21 @@ enum ServiceLevel {
   SAME_DAY
   NEXT_DAY
   TWO_DAY
+  THREE_DAY
+  ECONOMY
+  GROUND
+  OVERNIGHT
+}
+
+enum TransportMode {
+  LTL
+  FTL
+  PARCEL
+  AIR
+  OCEAN
+  RAIL
+  INTERMODAL
+  COURIER
 }
 
 enum WeightUnit {
@@ -339,95 +585,192 @@ enum DocumentType {
   CUSTOMS_DECLARATION
   EXPORT_DECLARATION
   CERTIFICATE_OF_ORIGIN
+  POD
+  HAZMAT_DECLARATION
   OTHER
 }
 
-enum LabelFormat {
-  PDF
-  ZPL
-  PNG
-  JPEG
+enum EventType {
+  CREATED
+  UPDATED
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  ARRIVED
+  DEPARTED
+  DELIVERED
+  EXCEPTION
+  DELAYED
+  CANCELLED
 }
 
-enum FacilityType {
-  WAREHOUSE
-  DISTRIBUTION_CENTER
-  SORTING_CENTER
-  DELIVERY_STATION
-  CUSTOMER_LOCATION
+enum SensorType {
+  GPS
+  TEMPERATURE
+  HUMIDITY
+  SHOCK
+  TILT
+  LIGHT
+  DOOR
+  BATTERY
+  FUEL
+  TIRE_PRESSURE
+}
+
+enum AlertStatus {
+  NORMAL
+  WARNING
+  CRITICAL
+}
+
+enum ExceptionType {
+  DAMAGED
+  LOST
+  WEATHER_DELAY
+  MECHANICAL_FAILURE
+  CUSTOMS_HOLD
+  ADDRESS_ISSUE
+  REFUSED
+  OTHER
+}
+
+enum ExceptionSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ClaimType {
+  DAMAGE
+  LOSS
+  DELAY
+  OTHER
+}
+
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  DENIED
+  CLOSED
 }
 
 // ============================================
-// CARRIER MODELS
+// CARRIER MODELS (ENHANCED)
 // ============================================
 
 model Carrier {
   id          String        @id @default(uuid())
   code        String        @unique
   name        String
+  legalName   String?
+  scac        String?       @unique
+  dot         String?
+  mc          String?
+  taxId       String?
   type        CarrierType
+  modes       TransportMode[]
   status      CarrierStatus @default(ACTIVE)
+
+  // Contact
   email       String
   phone       String
   website     String?
+
+  // Address
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  postalCode   String?
+  country      String?
+
+  // Performance
+  rating         Float?
+  onTimeRate     Float?
+  claimRate      Float?
+  totalShipments Int   @default(0)
+  totalRevenue   Float?
+
+  // Insurance & Compliance
+  insuranceAmount Float?
+  insuranceExpiry DateTime?
+  licenseExpiry   DateTime?
+  certifications  String[]
+
+  // Integration
   apiEndpoint String?
   apiKey      String?
+  apiSecret   String?
+  ediEnabled  Boolean @default(false)
+  ediQualifier String?
+  ediId       String?
+  webhookUrl  String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Approval
+  approvedAt DateTime?
+  approvedBy String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   // Relations
-  services      CarrierService[]
-  rates         CarrierRate[]
-  contracts     CarrierContract[]
+  services       CarrierService[]
+  rates          CarrierRate[]
+  contracts      CarrierContract[]
   tenderRequests TenderRequest[]
-  shipments     Shipment[]
+  shipments      Shipment[]
+  serviceAreas   ServiceArea[]
+  lanes          Lane[]
+  capacities     Capacity[]
 
+  @@index([code])
+  @@index([scac])
+  @@index([status])
+  @@index([companyId])
   @@map("carriers")
 }
 
 model CarrierService {
-  id          String  @id @default(uuid())
-  carrierId   String
-  carrier     Carrier @relation(fields: [carrierId], references: [id], onDelete: Cascade)
-
-  code        String
-  name        String
-  description String?
+  id           String  @id @default(uuid())
+  carrierId    String
+  carrier      Carrier @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  description  String?
   serviceLevel String
-  transitTime Int // in hours
-  cutoffTime  String?
-
-  baseRate    Float
-  currency    String  @default("GBP")
-
-  maxWeight      Float?
-  maxLength      Float?
-  maxWidth       Float?
-  maxHeight      Float?
-
-  isActive    Boolean @default(true)
+  transitTime  Int // in hours
+  cutoffTime   String?
+  baseRate     Float
+  currency     String  @default("GBP")
+  maxWeight    Float?
+  maxLength    Float?
+  maxWidth     Float?
+  maxHeight    Float?
+  isActive     Boolean @default(true)
 
   @@unique([carrierId, code])
   @@map("carrier_services")
 }
 
 model CarrierRate {
-  id               String  @id @default(uuid())
-  carrierId        String
-  carrier          Carrier @relation(fields: [carrierId], references: [id], onDelete: Cascade)
-  serviceId        String
-
-  originZone       String
-  destinationZone  String
-  weightFrom       Float
-  weightTo         Float
-  rate             Float
-  currency         String  @default("GBP")
-
-  effectiveFrom DateTime
-  effectiveTo   DateTime?
-  isActive      Boolean   @default(true)
+  id              String    @id @default(uuid())
+  carrierId       String
+  carrier         Carrier   @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  serviceId       String
+  originZone      String
+  destinationZone String
+  weightFrom      Float
+  weightTo        Float
+  rate            Float
+  currency        String    @default("GBP")
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  isActive        Boolean   @default(true)
 
   @@map("carrier_rates")
 }
@@ -436,7 +779,6 @@ model CarrierContract {
   id             String         @id @default(uuid())
   carrierId      String
   carrier        Carrier        @relation(fields: [carrierId], references: [id], onDelete: Cascade)
-
   contractNumber String         @unique
   startDate      DateTime
   endDate        DateTime
@@ -444,46 +786,94 @@ model CarrierContract {
   minimumVolume  Int?
   discountTier   Float?
   terms          String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@map("carrier_contracts")
 }
 
 model TenderRequest {
-  id                     String       @id @default(uuid())
-  shipmentId             String
-  carrierId              String
-  carrier                Carrier      @relation(fields: [carrierId], references: [id])
-  status                 TenderStatus @default(PENDING)
-
-  requestedAt            DateTime     @default(now())
-  respondedAt            DateTime?
-  expiresAt              DateTime
-
-  quotedRate             Float?
-  currency               String?
-  estimatedPickupDate    DateTime?
-  estimatedDeliveryDate  DateTime?
-  notes                  String?
+  id                    String       @id @default(uuid())
+  shipmentId            String
+  carrierId             String
+  carrier               Carrier      @relation(fields: [carrierId], references: [id])
+  status                TenderStatus @default(PENDING)
+  requestedAt           DateTime     @default(now())
+  respondedAt           DateTime?
+  expiresAt             DateTime
+  quotedRate            Float?
+  currency              String?
+  estimatedPickupDate   DateTime?
+  estimatedDeliveryDate DateTime?
+  notes                 String?
 
   @@map("tender_requests")
 }
 
+model ServiceArea {
+  id        String   @id @default(uuid())
+  carrierId String
+  carrier   Carrier  @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  name      String
+  country   String
+  state     String?
+  city      String?
+  postalCodes String[]
+  isActive  Boolean  @default(true)
+
+  @@map("service_areas")
+}
+
+model Lane {
+  id              String   @id @default(uuid())
+  carrierId       String
+  carrier         Carrier  @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  name            String
+  originCity      String
+  originState     String
+  destinationCity String
+  destinationState String
+  distance        Float
+  baseRate        Float
+  currency        String   @default("GBP")
+  transitTime     Int // hours
+  isActive        Boolean  @default(true)
+
+  @@map("lanes")
+}
+
+model Capacity {
+  id          String   @id @default(uuid())
+  carrierId   String
+  carrier     Carrier  @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  date        DateTime
+  maxWeight   Float
+  maxVolume   Float
+  maxShipments Int
+  available   Float
+  reserved    Float
+  utilized    Float
+
+  @@map("capacities")
+}
+
 enum CarrierType {
+  ASSET
+  BROKER
+  THREE_PL
   COURIER
-  FREIGHT
-  PARCEL
+  FREIGHT_FORWARDER
   LTL
   FTL
+  PARCEL
   LAST_MILE
 }
 
 enum CarrierStatus {
+  PENDING
   ACTIVE
-  INACTIVE
   SUSPENDED
+  INACTIVE
 }
 
 enum ContractStatus {
@@ -502,7 +892,7 @@ enum TenderStatus {
 }
 
 // ============================================
-// ROUTE & FLEET MODELS
+// ROUTE & FLEET MODELS (ENHANCED)
 // ============================================
 
 model Route {
@@ -514,9 +904,9 @@ model Route {
   vehicle     Vehicle?    @relation(fields: [vehicleId], references: [id])
   vehicleType VehicleType
 
-  driverId    String?
-  driver      Driver?     @relation(fields: [driverId], references: [id])
-  driverName  String?
+  driverId   String?
+  driver     Driver? @relation(fields: [driverId], references: [id])
+  driverName String?
 
   totalDistance Float
   totalDuration Float
@@ -535,12 +925,14 @@ model Route {
   totalVolume   Float
   totalPackages Int
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
   metadata  Json?
 
   // Relations
-  stops RouteStop[]
+  stops     RouteStop[]
+  shipments Shipment[]
 
   @@map("routes")
 }
@@ -554,15 +946,15 @@ model RouteStop {
   status         StopStatus @default(PENDING)
 
   // Location
-  street      String
-  street2     String?
-  city        String
-  state       String
-  postalCode  String
-  country     String
-  latitude    Float?
-  longitude   Float?
-  facilityId  String?
+  street     String
+  street2    String?
+  city       String
+  state      String
+  postalCode String
+  country    String
+  latitude   Float?
+  longitude  Float?
+  facilityId String?
 
   // Timing
   plannedArrivalTime   DateTime
@@ -582,7 +974,6 @@ model RouteStop {
 
   // Relations
   shipments Shipment[]
-  packages  Package[]
 
   @@map("route_stops")
 }
@@ -598,10 +989,11 @@ model Vehicle {
   model String
   year  Int
   color String?
+  vin   String?
 
-  maxWeight   Float
-  maxVolume   Float
-  maxPallets  Int?
+  maxWeight  Float
+  maxVolume  Float
+  maxPallets Int?
 
   gpsDeviceId        String?
   currentLatitude    Float?
@@ -614,43 +1006,83 @@ model Vehicle {
   lastMaintenanceDate DateTime?
   nextMaintenanceDate DateTime?
   mileage             Int?
+  fuelType            String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   // Relations
-  routes Route[]
+  routes          Route[]
+  shipments       Shipment[]
+  maintenanceRecords MaintenanceRecord[]
+  fuelLogs        FuelLog[]
 
   @@map("vehicles")
 }
 
 model Driver {
-  id             String       @id @default(uuid())
-  userId         String
-  user           User         @relation(fields: [userId], references: [id])
-  driverNumber   String       @unique
-  licenseNumber  String
-  licenseExpiry  DateTime
-  status         DriverStatus @default(ACTIVE)
+  id            String       @id @default(uuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  driverNumber  String       @unique
+  licenseNumber String
+  licenseClass  String?
+  licenseExpiry DateTime
+  status        DriverStatus @default(ACTIVE)
 
   assignedVehicleId String?
   assignedRouteId   String?
   currentLatitude   Float?
   currentLongitude  Float?
 
-  totalDeliveries     Int   @default(0)
-  onTimeDeliveryRate  Float @default(0)
-  averageRating       Float @default(0)
-  totalMilesDriven    Float @default(0)
-  metricsLastUpdated  DateTime?
+  // Performance metrics
+  totalDeliveries    Int   @default(0)
+  onTimeDeliveryRate Float @default(0)
+  averageRating      Float @default(0)
+  totalMilesDriven   Float @default(0)
+  hoursOfService     Float @default(0)
+  metricsLastUpdated DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   // Relations
-  routes Route[]
+  routes    Route[]
+  shipments Shipment[]
 
   @@map("drivers")
+}
+
+model MaintenanceRecord {
+  id          String   @id @default(uuid())
+  vehicleId   String
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type        String
+  description String
+  cost        Float?
+  mileage     Int?
+  performedAt DateTime
+  performedBy String?
+
+  @@index([vehicleId])
+  @@map("maintenance_records")
+}
+
+model FuelLog {
+  id          String   @id @default(uuid())
+  vehicleId   String
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  gallons     Float
+  cost        Float
+  pricePerGallon Float
+  mileage     Int
+  location    String?
+  filledAt    DateTime @default(now())
+
+  @@index([vehicleId])
+  @@map("fuel_logs")
 }
 
 enum RouteStatus {
@@ -710,21 +1142,33 @@ model Invoice {
   invoiceNumber String        @unique
   shipmentId    String
   shipment      Shipment      @relation(fields: [shipmentId], references: [id])
-
   status        InvoiceStatus @default(PENDING)
-
   subtotal      Float
   tax           Float
   total         Float
   currency      String        @default("GBP")
-
   dueDate       DateTime
   paidAt        DateTime?
-
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
+  // Relations
+  charges Charge[]
+
   @@map("invoices")
+}
+
+model Charge {
+  id          String  @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  amount      Float
+  currency    String  @default("GBP")
+  type        String
+
+  @@index([invoiceId])
+  @@map("charges")
 }
 
 enum InvoiceStatus {
@@ -735,6 +1179,37 @@ enum InvoiceStatus {
 }
 
 // ============================================
+// NOTIFICATION MODELS
+// ============================================
+
+model Notification {
+  id         String             @id @default(uuid())
+  userId     String
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  title      String
+  message    String
+  data       Json?
+  isRead     Boolean            @default(false)
+  readAt     DateTime?
+  createdAt  DateTime           @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  SHIPMENT_UPDATE
+  DELIVERY_COMPLETE
+  EXCEPTION
+  DELAY
+  TENDER_REQUEST
+  SYSTEM_ALERT
+  OTHER
+}
+
+// ============================================
 // AUDIT LOG
 // ============================================
 
@@ -742,15 +1217,16 @@ model AuditLog {
   id        String   @id @default(uuid())
   userId    String?
   user      User?    @relation(fields: [userId], references: [id])
-
   action    String
   entity    String
   entityId  String
   changes   Json?
   ipAddress String?
   userAgent String?
-
   createdAt DateTime @default(now())
 
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
   @@map("audit_logs")
 }
