@@ -10,13 +10,20 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../../services/prisma.service';
 import { RegisterDto, LoginDto } from '../dto/auth.dto';
 import { User } from '@prisma/client';
+import { SessionService } from './session.service';
 
 @Injectable()
 export class AuthService {
+  // Maximum failed login attempts before account lockout
+  private readonly MAX_FAILED_ATTEMPTS = 5;
+  // Lockout duration in minutes
+  private readonly LOCKOUT_DURATION_MINUTES = 30;
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private sessionService: SessionService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -63,7 +70,7 @@ export class AuthService {
     };
   }
 
-  async login(loginDto: LoginDto) {
+  async login(loginDto: LoginDto, ipAddress: string, userAgent?: string) {
     const { email, password } = loginDto;
 
     // Find user
@@ -78,6 +85,16 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Check if account is locked
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      const minutesRemaining = Math.ceil(
+        (user.lockedUntil.getTime() - new Date().getTime()) / (1000 * 60),
+      );
+      throw new UnauthorizedException(
+        `Account is locked due to multiple failed login attempts. Please try again in ${minutesRemaining} minutes.`,
+      );
+    }
+
     // Check if user is active
     if (user.status !== 'ACTIVE') {
       throw new UnauthorizedException('Account is not active');
@@ -87,16 +104,24 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
+      // Increment failed login attempts
+      await this.handleFailedLogin(user.id);
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Generate tokens
-    const tokens = await this.generateTokens(user);
+    // Reset failed login attempts on successful login
+    await this.resetFailedLoginAttempts(user.id);
 
-    // Update last login
+    // Generate tokens
+    const tokens = await this.generateTokens(user, ipAddress, userAgent);
+
+    // Update last login with IP address
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: {
+        lastLoginAt: new Date(),
+        lastLoginIp: ipAddress,
+      },
     });
 
     // Remove password from response
@@ -106,6 +131,46 @@ export class AuthService {
       user: userWithoutPassword,
       ...tokens,
     };
+  }
+
+  /**
+   * Handle failed login attempt - increment counter and lock account if needed
+   */
+  private async handleFailedLogin(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { failedLoginAttempts: true },
+    });
+
+    const newAttempts = (user?.failedLoginAttempts || 0) + 1;
+    const updateData: any = {
+      failedLoginAttempts: newAttempts,
+    };
+
+    // Lock account if max attempts reached
+    if (newAttempts >= this.MAX_FAILED_ATTEMPTS) {
+      const lockoutUntil = new Date();
+      lockoutUntil.setMinutes(lockoutUntil.getMinutes() + this.LOCKOUT_DURATION_MINUTES);
+      updateData.lockedUntil = lockoutUntil;
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+  }
+
+  /**
+   * Reset failed login attempts counter
+   */
+  private async resetFailedLoginAttempts(userId: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
   }
 
   async refreshToken(userId: string, refreshToken: string) {
@@ -137,7 +202,7 @@ export class AuthService {
     return this.generateTokens(user);
   }
 
-  async logout(userId: string, refreshToken: string) {
+  async logout(userId: string, refreshToken: string, accessToken?: string) {
     // Delete refresh token
     await this.prisma.refreshToken.deleteMany({
       where: {
@@ -145,6 +210,11 @@ export class AuthService {
         userId,
       },
     });
+
+    // Revoke session if access token is provided
+    if (accessToken) {
+      await this.sessionService.revokeSessionByToken(accessToken);
+    }
 
     return { message: 'Logged out successfully' };
   }
@@ -162,7 +232,7 @@ export class AuthService {
     return null;
   }
 
-  private async generateTokens(user: User) {
+  private async generateTokens(user: User, ipAddress?: string, userAgent?: string) {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -179,16 +249,30 @@ export class AuthService {
     });
 
     // Store refresh token
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+    const refreshExpiresAt = new Date();
+    refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 7); // 7 days
 
     await this.prisma.refreshToken.create({
       data: {
         token: refreshToken,
         userId: user.id,
-        expiresAt,
+        expiresAt: refreshExpiresAt,
       },
     });
+
+    // Create session if IP address is provided
+    if (ipAddress) {
+      const sessionExpiresAt = new Date();
+      sessionExpiresAt.setDate(sessionExpiresAt.getDate() + 7); // Match refresh token expiry
+
+      await this.sessionService.createSession({
+        userId: user.id,
+        token: accessToken,
+        expiresAt: sessionExpiresAt,
+        ipAddress,
+        userAgent,
+      });
+    }
 
     return {
       accessToken,
