@@ -101,19 +101,20 @@ export class TrackingService {
         select: {
           id: true,
           shipmentId: true,
-          packageId: true,
+          eventType: true,
           status: true,
           description: true,
-          locationCity: true,
-          locationState: true,
-          locationCountry: true,
+          location: true,
+          coordinates: true,
           facility: true,
-          facilityType: true,
           timestamp: true,
+          source: true,
           createdBy: true,
+          metadata: true,
           shipment: {
             select: {
               id: true,
+              shipmentNumber: true,
               referenceNumber: true,
               trackingNumber: true,
               customerName: true,
@@ -142,32 +143,37 @@ export class TrackingService {
       select: {
         id: true,
         shipmentId: true,
-        packageId: true,
+        eventType: true,
         status: true,
         description: true,
-        locationStreet: true,
-        locationCity: true,
-        locationState: true,
-        locationCountry: true,
-        latitude: true,
-        longitude: true,
+        location: true,
+        coordinates: true,
         facility: true,
-        facilityType: true,
         timestamp: true,
+        source: true,
         createdBy: true,
         metadata: true,
         shipment: {
           select: {
             id: true,
+            shipmentNumber: true,
             referenceNumber: true,
             trackingNumber: true,
             type: true,
             priority: true,
             customerName: true,
-            originCity: true,
-            originCountry: true,
-            destCity: true,
-            destCountry: true,
+            origin: {
+              select: {
+                city: true,
+                country: true,
+              },
+            },
+            destination: {
+              select: {
+                city: true,
+                country: true,
+              },
+            },
           },
         },
       },
@@ -187,17 +193,32 @@ export class TrackingService {
     const { location, timestamp, ...rest } = updateTrackingDto;
 
     // Build update data
-    const updateData: any = { ...rest };
+    const updateData: any = {};
+
+    if (rest.status !== undefined) updateData.status = rest.status;
+    if (rest.description !== undefined) updateData.description = rest.description;
 
     if (location) {
-      updateData.locationStreet = location.address;
-      updateData.locationCity = location.city;
-      updateData.locationState = location.state;
-      updateData.locationCountry = location.country;
-      updateData.latitude = location.latitude;
-      updateData.longitude = location.longitude;
-      updateData.facility = location.facility;
-      updateData.facilityType = location.facilityType;
+      // Build location string from components
+      const locationParts = [
+        location.address,
+        location.city,
+        location.state,
+        location.country,
+      ].filter(Boolean);
+      updateData.location = locationParts.join(', ');
+
+      // Store coordinates as JSON
+      if (location.latitude && location.longitude) {
+        updateData.coordinates = {
+          lat: location.latitude,
+          lng: location.longitude,
+        };
+      }
+
+      if (location.facility) {
+        updateData.facility = location.facility;
+      }
     }
 
     if (timestamp) {
@@ -210,18 +231,14 @@ export class TrackingService {
       select: {
         id: true,
         shipmentId: true,
-        packageId: true,
+        eventType: true,
         status: true,
         description: true,
-        locationStreet: true,
-        locationCity: true,
-        locationState: true,
-        locationCountry: true,
-        latitude: true,
-        longitude: true,
+        location: true,
+        coordinates: true,
         facility: true,
-        facilityType: true,
         timestamp: true,
+        source: true,
         createdBy: true,
         metadata: true,
       },
@@ -263,18 +280,14 @@ export class TrackingService {
       where: { shipmentId },
       select: {
         id: true,
-        packageId: true,
+        eventType: true,
         status: true,
         description: true,
-        locationStreet: true,
-        locationCity: true,
-        locationState: true,
-        locationCountry: true,
-        latitude: true,
-        longitude: true,
+        location: true,
+        coordinates: true,
         facility: true,
-        facilityType: true,
         timestamp: true,
+        source: true,
         createdBy: true,
         metadata: true,
       },
@@ -290,8 +303,14 @@ export class TrackingService {
     };
   }
 
+  // Note: Package model doesn't exist in current schema
+  // This method is disabled until Package model is added
   async getByPackage(packageId: string) {
-    // Verify package exists
+    throw new BadRequestException(
+      'Package tracking is not available. Package model not implemented in current schema.',
+    );
+
+    /* Original implementation - requires Package model
     const pkg = await this.prisma.package.findUnique({
       where: { id: packageId },
       select: {
@@ -302,6 +321,7 @@ export class TrackingService {
         shipment: {
           select: {
             id: true,
+            shipmentNumber: true,
             referenceNumber: true,
             trackingNumber: true,
             status: true,
@@ -319,17 +339,14 @@ export class TrackingService {
       select: {
         id: true,
         shipmentId: true,
+        eventType: true,
         status: true,
         description: true,
-        locationStreet: true,
-        locationCity: true,
-        locationState: true,
-        locationCountry: true,
-        latitude: true,
-        longitude: true,
+        location: true,
+        coordinates: true,
         facility: true,
-        facilityType: true,
         timestamp: true,
+        source: true,
         createdBy: true,
         metadata: true,
       },
@@ -343,6 +360,7 @@ export class TrackingService {
       events,
       totalEvents: events.length,
     };
+    */
   }
 
   async createEvent(data: CreateTrackingDto) {

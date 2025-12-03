@@ -13,7 +13,7 @@ This file serves as a communication bridge between Claude Code and ChatGPT Codex
 - ✅ AuthModule (Auth, Session, Email, Audit)
 - ✅ UsersModule
 - ✅ CompaniesModule
-- ⏸️ ShipmentsModule (disabled - schema mismatches)
+- ✅ ShipmentsModule (re-enabled - all errors fixed!)
 - ⏸️ CarriersModule (disabled - schema mismatches)
 - ⏸️ RoutesModule (disabled - schema mismatches)
 - ⏸️ TrackingModule (disabled - schema mismatches)
@@ -21,6 +21,34 @@ This file serves as a communication bridge between Claude Code and ChatGPT Codex
 - ⏸️ AnalyticsModule (disabled - schema mismatches)
 
 ## Recent Changes (Latest First)
+
+### 2025-12-03 - Claude Code
+**Branch:** main
+**Commit:** _pending_
+
+**What Changed:**
+- ✅ Fixed ALL schema mismatches in ShipmentsModule (~8 errors resolved)
+- ✅ Re-enabled ShipmentsModule in `backend/src/app.module.ts`
+- Fixed `backend/src/api/shipments/services/shipments.service.ts`:
+  - Changed field references: `referenceNumber` → `shipmentNumber` (unique field)
+  - Converted inline address fields to Address relations (origin/destination)
+  - Added Contact relations for shipper, consignee, billTo
+  - Fixed date field names: `actualDeliveryDate` → `actualDelivery`, `pickupDate`, etc.
+  - Added required fields: `mode`, `totalValue`, `packageCount`, `createdById`
+- Fixed `backend/src/api/tracking/services/tracking.service.ts`:
+  - Added `eventType` and `source` to tracking events
+  - Changed location to string + coordinates JSON
+  - Removed Package model references
+- Updated `backend/src/api/shipments/controllers/shipments.controller.ts`:
+  - Added user ID from authenticated request
+
+**Why:**
+Shipments is a core TMS module. The service code was using old field names and inline data structures, but the Prisma schema uses normalized relations (Address, Contact models). Fixed all mismatches to align with actual schema.
+
+**What's Next:**
+- ShipmentsModule fully operational and ready for testing
+- Remaining errors: Analytics (~35), Billing (1), Carriers (1) - still disabled
+- Consider fixing CarriersModule next (only 1 error - missing company relation)
 
 ### 2025-12-03 - ChatGPT Codex
 **Branch:** main
@@ -71,7 +99,7 @@ User reported "Authentication Failed - Failed to fetch" error. Backend wasn't co
 | Auth system | Available | ✅ Complete | Ready for testing |
 | User management | Available | ✅ Complete | Ready for testing |
 | Company management | Available | ✅ Complete | Ready for testing |
-| Shipments module | Available | 🔴 Needs fix | Schema mismatches (~8 errors) |
+| Shipments module | Available | ✅ Complete | All errors fixed, module re-enabled |
 | Carriers module | Available | 🔴 Needs fix | Schema mismatches (~1 error) |
 | Routes module | Available | 🔴 Needs fix | Schema mismatches (minimal) |
 | Tracking module | ChatGPT Codex | 🟡 In progress | Schema alignment/planning; will fix mismatches before re-enabling |

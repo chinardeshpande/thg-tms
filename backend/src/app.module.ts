@@ -15,7 +15,7 @@ import { LoggingInterceptor } from './api/middleware/logging.interceptor';
 import { AuthModule } from './api/auth/auth.module';
 import { UsersModule } from './api/users/users.module';
 import { CompaniesModule } from './api/companies/companies.module';
-// import { ShipmentsModule } from './api/shipments/shipments.module';
+import { ShipmentsModule } from './api/shipments/shipments.module';
 // import { CarriersModule } from './api/carriers/carriers.module';
 // import { RoutesModule } from './api/routes/routes.module';
 // import { TrackingModule } from './api/tracking/tracking.module';
@@ -57,7 +57,7 @@ import { CompaniesModule } from './api/companies/companies.module';
     AuthModule,
     UsersModule,
     CompaniesModule,
-    // ShipmentsModule, // Temporarily disabled - has schema mismatches
+    ShipmentsModule,
     // CarriersModule, // Temporarily disabled - has schema mismatches
     // RoutesModule, // Temporarily disabled - has schema mismatches
     // TrackingModule, // Temporarily disabled - has schema mismatches

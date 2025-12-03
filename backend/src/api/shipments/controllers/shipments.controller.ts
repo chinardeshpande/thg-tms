@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Query,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -36,8 +37,8 @@ export class ShipmentsController {
   @ApiResponse({ status: 201, description: 'Shipment created successfully' })
   @ApiResponse({ status: 409, description: 'Shipment already exists' })
   @ApiResponse({ status: 404, description: 'Customer not found' })
-  create(@Body() createShipmentDto: CreateShipmentDto) {
-    return this.shipmentsService.create(createShipmentDto);
+  create(@Body() createShipmentDto: CreateShipmentDto, @Request() req: any) {
+    return this.shipmentsService.create(createShipmentDto, req.user.id);
   }
 
   @Get()

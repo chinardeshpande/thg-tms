@@ -13,21 +13,21 @@ import { ShipmentStatus, ShipmentType } from '@prisma/client';
 export class ShipmentsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createShipmentDto: CreateShipmentDto) {
+  async create(createShipmentDto: CreateShipmentDto, userId: string) {
     const { origin, destination, ...rest } = createShipmentDto;
 
-    // Generate reference number if not provided
-    const referenceNumber =
-      createShipmentDto.referenceNumber || (await this.generateReferenceNumber());
+    // Generate shipment number if not provided
+    const shipmentNumber =
+      createShipmentDto.referenceNumber || (await this.generateShipmentNumber());
 
-    // Check if reference number is unique
+    // Check if shipment number is unique
     const existingShipment = await this.prisma.shipment.findUnique({
-      where: { referenceNumber },
+      where: { shipmentNumber },
     });
 
     if (existingShipment) {
       throw new ConflictException(
-        'Shipment with this reference number already exists',
+        'Shipment with this shipment number already exists',
       );
     }
 
@@ -42,34 +42,74 @@ export class ShipmentsService {
       );
     }
 
+    // Create Address records for origin and destination
+    const originAddress = await this.prisma.address.create({
+      data: {
+        line1: origin.street,
+        line2: origin.street2,
+        city: origin.city,
+        state: origin.state,
+        postalCode: origin.postalCode,
+        country: origin.country,
+        latitude: origin.latitude,
+        longitude: origin.longitude,
+        type: 'WAREHOUSE',
+      },
+    });
+
+    const destinationAddress = await this.prisma.address.create({
+      data: {
+        line1: destination.street,
+        line2: destination.street2,
+        city: destination.city,
+        state: destination.state,
+        postalCode: destination.postalCode,
+        country: destination.country,
+        latitude: destination.latitude,
+        longitude: destination.longitude,
+        type: 'CUSTOMER',
+      },
+    });
+
+    // Create Contact records for shipper and consignee
+    const shipperContact = await this.prisma.contact.create({
+      data: {
+        firstName: rest.customerName.split(' ')[0] || 'Unknown',
+        lastName: rest.customerName.split(' ').slice(1).join(' ') || 'User',
+        company: customer.name,
+        email: rest.customerEmail,
+        phone: rest.customerPhone || '',
+        role: 'Shipper',
+      },
+    });
+
+    const consigneeContact = await this.prisma.contact.create({
+      data: {
+        firstName: 'Consignee',
+        lastName: 'User',
+        phone: rest.customerPhone || '',
+        role: 'Consignee',
+      },
+    });
+
     // Create shipment
     const shipment = await this.prisma.shipment.create({
       data: {
-        referenceNumber,
+        shipmentNumber,
+        referenceNumber: rest.referenceNumber,
         type: rest.type,
         priority: rest.priority || 'MEDIUM',
         serviceLevel: rest.serviceLevel || 'STANDARD',
+        mode: 'PARCEL', // Default mode
         status: 'DRAFT',
 
-        // Origin address
-        originStreet: origin.street,
-        originStreet2: origin.street2,
-        originCity: origin.city,
-        originState: origin.state,
-        originPostalCode: origin.postalCode,
-        originCountry: origin.country,
-        originLatitude: origin.latitude,
-        originLongitude: origin.longitude,
+        // Relations to Address
+        originId: originAddress.id,
+        destinationId: destinationAddress.id,
 
-        // Destination address
-        destStreet: destination.street,
-        destStreet2: destination.street2,
-        destCity: destination.city,
-        destState: destination.state,
-        destPostalCode: destination.postalCode,
-        destCountry: destination.country,
-        destLatitude: destination.latitude,
-        destLongitude: destination.longitude,
+        // Relations to Contact
+        shipperId: shipperContact.id,
+        consigneeId: consigneeContact.id,
 
         // Customer info
         customerId: rest.customerId,
@@ -80,14 +120,16 @@ export class ShipmentsService {
         // Package info
         totalWeight: rest.totalWeight,
         totalVolume: rest.totalVolume,
+        totalValue: rest.declaredValue || 0,
+        packageCount: 1, // Default to 1 package
         weightUnit: rest.weightUnit || 'KG',
         dimensionUnit: rest.dimensionUnit || 'CM',
 
         // Dates
-        scheduledPickupDate: rest.scheduledPickupDate
+        pickupDate: rest.scheduledPickupDate
           ? new Date(rest.scheduledPickupDate)
           : null,
-        estimatedDeliveryDate: rest.estimatedDeliveryDate
+        deliveryDate: rest.estimatedDeliveryDate
           ? new Date(rest.estimatedDeliveryDate)
           : null,
 
@@ -97,44 +139,78 @@ export class ShipmentsService {
 
         // Additional flags
         requiresSignature: rest.requiresSignature || false,
-        isHazmat: rest.isHazmat || false,
-        isFragile: rest.isFragile || false,
+        hazmat: rest.isHazmat || false,
+        fragile: rest.isFragile || false,
         specialInstructions: rest.specialInstructions,
+
+        // User tracking
+        createdById: userId,
       },
       select: {
         id: true,
+        shipmentNumber: true,
         referenceNumber: true,
         type: true,
         status: true,
         priority: true,
         serviceLevel: true,
-        originStreet: true,
-        originStreet2: true,
-        originCity: true,
-        originState: true,
-        originPostalCode: true,
-        originCountry: true,
-        destStreet: true,
-        destStreet2: true,
-        destCity: true,
-        destState: true,
-        destPostalCode: true,
-        destCountry: true,
+        mode: true,
+        origin: {
+          select: {
+            line1: true,
+            line2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            country: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+        destination: {
+          select: {
+            line1: true,
+            line2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            country: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+        shipper: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+        consignee: {
+          select: {
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
         customerId: true,
         customerName: true,
         customerEmail: true,
         customerPhone: true,
         totalWeight: true,
         totalVolume: true,
+        totalValue: true,
+        packageCount: true,
         weightUnit: true,
         dimensionUnit: true,
         declaredValue: true,
         currency: true,
-        scheduledPickupDate: true,
-        estimatedDeliveryDate: true,
+        pickupDate: true,
+        deliveryDate: true,
         requiresSignature: true,
-        isHazmat: true,
-        isFragile: true,
+        hazmat: true,
+        fragile: true,
         specialInstructions: true,
         createdAt: true,
         updatedAt: true,
@@ -166,17 +242,27 @@ export class ShipmentsService {
         where,
         select: {
           id: true,
+          shipmentNumber: true,
           referenceNumber: true,
           type: true,
           status: true,
           priority: true,
           serviceLevel: true,
-          originCity: true,
-          originState: true,
-          originCountry: true,
-          destCity: true,
-          destState: true,
-          destCountry: true,
+          mode: true,
+          origin: {
+            select: {
+              city: true,
+              state: true,
+              country: true,
+            },
+          },
+          destination: {
+            select: {
+              city: true,
+              state: true,
+              country: true,
+            },
+          },
           customerId: true,
           customerName: true,
           company: {
@@ -190,9 +276,9 @@ export class ShipmentsService {
           totalVolume: true,
           weightUnit: true,
           dimensionUnit: true,
-          scheduledPickupDate: true,
-          estimatedDeliveryDate: true,
-          actualDeliveryDate: true,
+          pickupDate: true,
+          deliveryDate: true,
+          actualDelivery: true,
           trackingNumber: true,
           createdAt: true,
           updatedAt: true,
@@ -218,31 +304,59 @@ export class ShipmentsService {
       where: { id },
       select: {
         id: true,
+        shipmentNumber: true,
         referenceNumber: true,
         type: true,
         status: true,
         priority: true,
         serviceLevel: true,
+        mode: true,
 
         // Origin
-        originStreet: true,
-        originStreet2: true,
-        originCity: true,
-        originState: true,
-        originPostalCode: true,
-        originCountry: true,
-        originLatitude: true,
-        originLongitude: true,
+        origin: {
+          select: {
+            line1: true,
+            line2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            country: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
 
         // Destination
-        destStreet: true,
-        destStreet2: true,
-        destCity: true,
-        destState: true,
-        destPostalCode: true,
-        destCountry: true,
-        destLatitude: true,
-        destLongitude: true,
+        destination: {
+          select: {
+            line1: true,
+            line2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            country: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+
+        // Contacts
+        shipper: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            company: true,
+          },
+        },
+        consignee: {
+          select: {
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
 
         // Carrier
         carrierId: true,
@@ -274,14 +388,16 @@ export class ShipmentsService {
         // Package info
         totalWeight: true,
         totalVolume: true,
+        totalValue: true,
+        packageCount: true,
         weightUnit: true,
         dimensionUnit: true,
 
         // Dates
-        scheduledPickupDate: true,
-        actualPickupDate: true,
-        estimatedDeliveryDate: true,
-        actualDeliveryDate: true,
+        pickupDate: true,
+        actualPickup: true,
+        deliveryDate: true,
+        actualDelivery: true,
 
         // Financial
         declaredValue: true,
@@ -292,9 +408,9 @@ export class ShipmentsService {
 
         // Additional
         requiresSignature: true,
-        isHazmat: true,
-        isFragile: true,
-        isTemperatureControlled: true,
+        hazmat: true,
+        fragile: true,
+        temperatureControlled: true,
         temperatureMin: true,
         temperatureMax: true,
         temperatureUnit: true,
@@ -304,22 +420,16 @@ export class ShipmentsService {
         updatedAt: true,
 
         // Relations
-        packages: {
+        items: {
           select: {
             id: true,
-            packageNumber: true,
-            trackingNumber: true,
-            length: true,
-            width: true,
-            height: true,
-            weight: true,
+            sku: true,
             description: true,
-            labelUrl: true,
-            labelFormat: true,
-            createdAt: true,
-          },
-          orderBy: {
-            packageNumber: 'asc',
+            quantity: true,
+            weight: true,
+            volume: true,
+            value: true,
+            dimensions: true,
           },
         },
         documents: {
@@ -339,11 +449,11 @@ export class ShipmentsService {
         trackingEvents: {
           select: {
             id: true,
+            eventType: true,
             status: true,
             description: true,
-            locationCity: true,
-            locationState: true,
-            locationCountry: true,
+            location: true,
+            coordinates: true,
             facility: true,
             timestamp: true,
           },
@@ -362,46 +472,86 @@ export class ShipmentsService {
   }
 
   async update(id: string, updateShipmentDto: UpdateShipmentDto) {
-    // Check if shipment exists
-    await this.findOne(id);
+    // Get shipment with address IDs
+    const existingShipment = await this.prisma.shipment.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        originId: true,
+        destinationId: true,
+      },
+    });
+
+    if (!existingShipment) {
+      throw new NotFoundException(`Shipment with ID ${id} not found`);
+    }
 
     const { origin, destination, ...rest } = updateShipmentDto;
 
     // Build update data
-    const updateData: any = { ...rest };
+    const updateData: any = {};
 
-    // Update origin address if provided
+    // Handle origin address update
     if (origin) {
-      updateData.originStreet = origin.street;
-      updateData.originStreet2 = origin.street2;
-      updateData.originCity = origin.city;
-      updateData.originState = origin.state;
-      updateData.originPostalCode = origin.postalCode;
-      updateData.originCountry = origin.country;
-      updateData.originLatitude = origin.latitude;
-      updateData.originLongitude = origin.longitude;
+      await this.prisma.address.update({
+        where: { id: existingShipment.originId },
+        data: {
+          line1: origin.street,
+          line2: origin.street2,
+          city: origin.city,
+          state: origin.state,
+          postalCode: origin.postalCode,
+          country: origin.country,
+          latitude: origin.latitude,
+          longitude: origin.longitude,
+        },
+      });
     }
 
-    // Update destination address if provided
+    // Handle destination address update
     if (destination) {
-      updateData.destStreet = destination.street;
-      updateData.destStreet2 = destination.street2;
-      updateData.destCity = destination.city;
-      updateData.destState = destination.state;
-      updateData.destPostalCode = destination.postalCode;
-      updateData.destCountry = destination.country;
-      updateData.destLatitude = destination.latitude;
-      updateData.destLongitude = destination.longitude;
+      await this.prisma.address.update({
+        where: { id: existingShipment.destinationId },
+        data: {
+          line1: destination.street,
+          line2: destination.street2,
+          city: destination.city,
+          state: destination.state,
+          postalCode: destination.postalCode,
+          country: destination.country,
+          latitude: destination.latitude,
+          longitude: destination.longitude,
+        },
+      });
     }
+
+    // Map DTO fields to schema fields
+    if (rest.type !== undefined) updateData.type = rest.type;
+    if (rest.priority !== undefined) updateData.priority = rest.priority;
+    if (rest.serviceLevel !== undefined) updateData.serviceLevel = rest.serviceLevel;
+    if (rest.customerName !== undefined) updateData.customerName = rest.customerName;
+    if (rest.customerEmail !== undefined) updateData.customerEmail = rest.customerEmail;
+    if (rest.customerPhone !== undefined) updateData.customerPhone = rest.customerPhone;
+    if (rest.totalWeight !== undefined) updateData.totalWeight = rest.totalWeight;
+    if (rest.totalVolume !== undefined) updateData.totalVolume = rest.totalVolume;
+    if (rest.weightUnit !== undefined) updateData.weightUnit = rest.weightUnit;
+    if (rest.dimensionUnit !== undefined) updateData.dimensionUnit = rest.dimensionUnit;
+    if (rest.declaredValue !== undefined) {
+      updateData.declaredValue = rest.declaredValue;
+      updateData.totalValue = rest.declaredValue;
+    }
+    if (rest.currency !== undefined) updateData.currency = rest.currency;
+    if (rest.requiresSignature !== undefined) updateData.requiresSignature = rest.requiresSignature;
+    if (rest.isHazmat !== undefined) updateData.hazmat = rest.isHazmat;
+    if (rest.isFragile !== undefined) updateData.fragile = rest.isFragile;
+    if (rest.specialInstructions !== undefined) updateData.specialInstructions = rest.specialInstructions;
 
     // Convert date strings to Date objects
-    if (updateData.scheduledPickupDate) {
-      updateData.scheduledPickupDate = new Date(updateData.scheduledPickupDate);
+    if (rest.scheduledPickupDate) {
+      updateData.pickupDate = new Date(rest.scheduledPickupDate);
     }
-    if (updateData.estimatedDeliveryDate) {
-      updateData.estimatedDeliveryDate = new Date(
-        updateData.estimatedDeliveryDate,
-      );
+    if (rest.estimatedDeliveryDate) {
+      updateData.deliveryDate = new Date(rest.estimatedDeliveryDate);
     }
 
     const shipment = await this.prisma.shipment.update({
@@ -409,25 +559,35 @@ export class ShipmentsService {
       data: updateData,
       select: {
         id: true,
+        shipmentNumber: true,
         referenceNumber: true,
         type: true,
         status: true,
         priority: true,
         serviceLevel: true,
-        originStreet: true,
-        originCity: true,
-        originState: true,
-        originCountry: true,
-        destStreet: true,
-        destCity: true,
-        destState: true,
-        destCountry: true,
+        mode: true,
+        origin: {
+          select: {
+            line1: true,
+            city: true,
+            state: true,
+            country: true,
+          },
+        },
+        destination: {
+          select: {
+            line1: true,
+            city: true,
+            state: true,
+            country: true,
+          },
+        },
         customerId: true,
         customerName: true,
         totalWeight: true,
         totalVolume: true,
-        scheduledPickupDate: true,
-        estimatedDeliveryDate: true,
+        pickupDate: true,
+        deliveryDate: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -462,6 +622,7 @@ export class ShipmentsService {
       data: { status },
       select: {
         id: true,
+        shipmentNumber: true,
         referenceNumber: true,
         status: true,
         type: true,
@@ -474,8 +635,10 @@ export class ShipmentsService {
     await this.prisma.shipmentTracking.create({
       data: {
         shipmentId: id,
+        eventType: 'UPDATED',
         status,
         description: `Shipment status changed to ${status}`,
+        source: 'MANUAL',
         timestamp: new Date(),
       },
     });
@@ -491,17 +654,14 @@ export class ShipmentsService {
       where: { shipmentId: id },
       select: {
         id: true,
+        eventType: true,
         status: true,
         description: true,
-        locationStreet: true,
-        locationCity: true,
-        locationState: true,
-        locationCountry: true,
-        latitude: true,
-        longitude: true,
+        location: true,
+        coordinates: true,
         facility: true,
-        facilityType: true,
         timestamp: true,
+        source: true,
         createdBy: true,
       },
       orderBy: {
@@ -516,7 +676,7 @@ export class ShipmentsService {
     };
   }
 
-  async generateReferenceNumber(): Promise<string> {
+  async generateShipmentNumber(): Promise<string> {
     const prefix = 'SHP';
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
