@@ -9,7 +9,7 @@ import {
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ShipmentStatus, FacilityType } from '@prisma/client';
+import { ShipmentStatus } from '@prisma/client';
 
 export class TrackingLocationDto {
   @ApiProperty({ example: '123 Main Street', required: false })
@@ -48,13 +48,12 @@ export class TrackingLocationDto {
   facility?: string;
 
   @ApiProperty({
-    enum: FacilityType,
     required: false,
-    example: FacilityType.DISTRIBUTION_CENTER,
+    example: 'DISTRIBUTION_CENTER',
   })
-  @IsEnum(FacilityType)
+  @IsString()
   @IsOptional()
-  facilityType?: FacilityType;
+  facilityType?: string;
 }
 
 export class CreateTrackingDto {
@@ -65,15 +64,6 @@ export class CreateTrackingDto {
   @IsString()
   @IsNotEmpty()
   shipmentId: string;
-
-  @ApiProperty({
-    example: 'pkg123456',
-    required: false,
-    description: 'Package ID (optional for package-level tracking)',
-  })
-  @IsString()
-  @IsOptional()
-  packageId?: string;
 
   @ApiProperty({
     enum: ShipmentStatus,

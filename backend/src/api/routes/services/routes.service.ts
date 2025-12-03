@@ -95,11 +95,6 @@ export class RoutesService {
                   connect: stop.shipmentIds.map((id) => ({ id })),
                 }
               : undefined,
-            packages: stop.packageIds
-              ? {
-                  connect: stop.packageIds.map((id) => ({ id })),
-                }
-              : undefined,
           })),
         },
       },
@@ -335,18 +330,6 @@ export class RoutesService {
                 customerName: true,
                 totalWeight: true,
                 totalVolume: true,
-              },
-            },
-            packages: {
-              select: {
-                id: true,
-                packageNumber: true,
-                trackingNumber: true,
-                weight: true,
-                length: true,
-                width: true,
-                height: true,
-                description: true,
               },
             },
           },
@@ -644,18 +627,6 @@ export class RoutesService {
             totalVolume: true,
             weightUnit: true,
             dimensionUnit: true,
-          },
-        },
-        packages: {
-          select: {
-            id: true,
-            packageNumber: true,
-            trackingNumber: true,
-            weight: true,
-            length: true,
-            width: true,
-            height: true,
-            description: true,
           },
         },
       },

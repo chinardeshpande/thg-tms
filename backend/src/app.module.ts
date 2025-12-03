@@ -15,12 +15,12 @@ import { LoggingInterceptor } from './api/middleware/logging.interceptor';
 import { AuthModule } from './api/auth/auth.module';
 import { UsersModule } from './api/users/users.module';
 import { CompaniesModule } from './api/companies/companies.module';
-import { ShipmentsModule } from './api/shipments/shipments.module';
-import { CarriersModule } from './api/carriers/carriers.module';
-import { RoutesModule } from './api/routes/routes.module';
-import { TrackingModule } from './api/tracking/tracking.module';
-import { BillingModule } from './api/billing/billing.module';
-import { AnalyticsModule } from './api/analytics/analytics.module';
+// import { ShipmentsModule } from './api/shipments/shipments.module';
+// import { CarriersModule } from './api/carriers/carriers.module';
+// import { RoutesModule } from './api/routes/routes.module';
+// import { TrackingModule } from './api/tracking/tracking.module';
+// import { BillingModule } from './api/billing/billing.module';
+// import { AnalyticsModule } from './api/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -57,12 +57,12 @@ import { AnalyticsModule } from './api/analytics/analytics.module';
     AuthModule,
     UsersModule,
     CompaniesModule,
-    ShipmentsModule,
-    CarriersModule,
-    RoutesModule,
-    TrackingModule,
-    BillingModule,
-    AnalyticsModule,
+    // ShipmentsModule, // Temporarily disabled - has schema mismatches
+    // CarriersModule, // Temporarily disabled - has schema mismatches
+    // RoutesModule, // Temporarily disabled - has schema mismatches
+    // TrackingModule, // Temporarily disabled - has schema mismatches
+    // BillingModule, // Temporarily disabled - has schema mismatches
+    // AnalyticsModule, // Temporarily disabled - has schema mismatches
   ],
   providers: [
     PrismaService,

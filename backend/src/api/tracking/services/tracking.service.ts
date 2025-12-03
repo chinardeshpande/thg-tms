@@ -26,53 +26,44 @@ export class TrackingService {
       );
     }
 
-    // Verify package exists if packageId is provided
-    if (createTrackingDto.packageId) {
-      const packageExists = await this.prisma.package.findUnique({
-        where: { id: createTrackingDto.packageId },
-      });
+    // Build location string from location data
+    const locationString = location
+      ? [location.address, location.city, location.state, location.country]
+          .filter(Boolean)
+          .join(', ')
+      : undefined;
 
-      if (!packageExists) {
-        throw new NotFoundException(
-          `Package with ID ${createTrackingDto.packageId} not found`,
-        );
-      }
-    }
+    // Build coordinates JSON from lat/lng
+    const coordinates = location?.latitude && location?.longitude
+      ? { lat: location.latitude, lng: location.longitude }
+      : undefined;
 
     // Create tracking event
     const trackingEvent = await this.prisma.shipmentTracking.create({
       data: {
         shipmentId: rest.shipmentId,
-        packageId: rest.packageId,
+        eventType: 'UPDATED', // Default event type
         status: rest.status,
         description: rest.description,
-        locationStreet: location?.address,
-        locationCity: location?.city,
-        locationState: location?.state,
-        locationCountry: location?.country,
-        latitude: location?.latitude,
-        longitude: location?.longitude,
+        location: locationString,
+        coordinates: coordinates,
         facility: location?.facility,
-        facilityType: location?.facilityType,
         timestamp: timestamp ? new Date(timestamp) : new Date(),
+        source: 'MANUAL', // Default source
         createdBy: rest.createdBy,
         metadata: rest.metadata,
       },
       select: {
         id: true,
         shipmentId: true,
-        packageId: true,
+        eventType: true,
         status: true,
         description: true,
-        locationStreet: true,
-        locationCity: true,
-        locationState: true,
-        locationCountry: true,
-        latitude: true,
-        longitude: true,
+        location: true,
+        coordinates: true,
         facility: true,
-        facilityType: true,
         timestamp: true,
+        source: true,
         createdBy: true,
         metadata: true,
       },
