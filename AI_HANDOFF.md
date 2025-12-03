@@ -22,6 +22,20 @@ This file serves as a communication bridge between Claude Code and ChatGPT Codex
 
 ## Recent Changes (Latest First)
 
+### 2025-12-03 - ChatGPT Codex
+**Branch:** main
+**Commit:** _pending (coordination update only)_
+
+**What Changed:**
+- Reviewed `claude.md` and `AI_HANDOFF.md` for context and collaboration workflow.
+- Claimed Tracking module ownership to plan schema alignment before re-enabling.
+
+**Why:**
+- Ensure both AIs are synchronized and avoid collisions while tackling schema mismatches.
+
+**What's Next:**
+- Audit Tracking module code vs Prisma schema, finalize fixes, and re-enable once errors are cleared.
+
 ### 2025-12-03 - Claude Code
 **Branch:** main
 **Commit:** 78aee5d "fix: resolve schema mismatches and get backend running"
@@ -60,7 +74,7 @@ User reported "Authentication Failed - Failed to fetch" error. Backend wasn't co
 | Shipments module | Available | 🔴 Needs fix | Schema mismatches (~8 errors) |
 | Carriers module | Available | 🔴 Needs fix | Schema mismatches (~1 error) |
 | Routes module | Available | 🔴 Needs fix | Schema mismatches (minimal) |
-| Tracking module | Available | 🔴 Needs fix | Schema mismatches (~4 errors) |
+| Tracking module | ChatGPT Codex | 🟡 In progress | Schema alignment/planning; will fix mismatches before re-enabling |
 | Billing module | Available | 🔴 Needs fix | Schema mismatches (~1 error) |
 | Analytics module | Available | 🔴 Needs fix | Schema mismatches (~35 errors) |
 
