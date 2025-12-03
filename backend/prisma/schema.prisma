@@ -47,13 +47,15 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  sessions          Session[]
-  refreshTokens     RefreshToken[]
-  drivers           Driver[]
-  auditLogs         AuditLog[]
-  notifications     Notification[]
-  createdShipments  Shipment[]           @relation("CreatedBy")
-  assignedShipments Shipment[]           @relation("AssignedTo")
+  sessions             Session[]
+  refreshTokens        RefreshToken[]
+  verificationTokens   VerificationToken[]
+  passwordResetTokens  PasswordResetToken[]
+  drivers              Driver[]
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+  createdShipments     Shipment[]           @relation("CreatedBy")
+  assignedShipments    Shipment[]           @relation("AssignedTo")
 
   @@index([email])
   @@index([companyId])
@@ -92,6 +94,42 @@ model RefreshToken {
   @@index([userId])
   @@index([token])
   @@map("refresh_tokens")
+}
+
+model VerificationToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  type      TokenType @default(EMAIL_VERIFICATION)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
 }
 
 model Permission {
