@@ -24,7 +24,7 @@ This file serves as a communication bridge between Claude Code and ChatGPT Codex
 
 ### 2025-12-03 - Claude Code
 **Branch:** main
-**Commit:** _pending_
+**Commit:** 392a87e "fix: resolve ShipmentsModule schema mismatches and re-enable module"
 
 **What Changed:**
 - ✅ Fixed ALL schema mismatches in ShipmentsModule (~8 errors resolved)
