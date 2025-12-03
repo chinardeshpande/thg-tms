@@ -14,6 +14,7 @@ import { RegisterDto, LoginDto } from '../dto/auth.dto';
 import { User } from '@prisma/client';
 import { SessionService } from './session.service';
 import { EmailService } from './email.service';
+import { AuditService } from './audit.service';
 
 @Injectable()
 export class AuthService {
@@ -32,6 +33,7 @@ export class AuthService {
     private configService: ConfigService,
     private sessionService: SessionService,
     private emailService: EmailService,
+    private auditService: AuditService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -76,6 +78,9 @@ export class AuthService {
 
     // Send verification email
     await this.sendEmailVerification(user.id);
+
+    // Log registration
+    await this.auditService.logRegistration(user.id, email);
 
     return {
       user,
@@ -163,6 +168,9 @@ export class AuthService {
     // Send welcome email
     await this.emailService.sendWelcomeEmail(verification.user.email, verification.user.firstName);
 
+    // Log email verification
+    await this.auditService.logEmailVerification(verification.userId);
+
     return { message: 'Email verified successfully' };
   }
 
@@ -225,6 +233,8 @@ export class AuthService {
     if (!isPasswordValid) {
       // Increment failed login attempts
       await this.handleFailedLogin(user.id);
+      // Log failed login
+      await this.auditService.logFailedLogin(email, 'Invalid password', ipAddress, userAgent);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -242,6 +252,9 @@ export class AuthService {
         lastLoginIp: ipAddress,
       },
     });
+
+    // Log successful login
+    await this.auditService.logLogin(user.id, ipAddress, userAgent);
 
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
@@ -271,6 +284,9 @@ export class AuthService {
       const lockoutUntil = new Date();
       lockoutUntil.setMinutes(lockoutUntil.getMinutes() + this.LOCKOUT_DURATION_MINUTES);
       updateData.lockedUntil = lockoutUntil;
+
+      // Log account lockout
+      await this.auditService.logAccountLockout(userId, this.LOCKOUT_DURATION_MINUTES);
     }
 
     await this.prisma.user.update({
@@ -334,6 +350,9 @@ export class AuthService {
     if (accessToken) {
       await this.sessionService.revokeSessionByToken(accessToken);
     }
+
+    // Log logout
+    await this.auditService.logLogout(userId);
 
     return { message: 'Logged out successfully' };
   }
@@ -427,6 +446,9 @@ export class AuthService {
     // Send reset email
     await this.emailService.sendPasswordResetEmail(user.email, token, user.firstName);
 
+    // Log password reset request
+    await this.auditService.logPasswordResetRequest(email);
+
     return { message: 'If the email exists, a password reset link has been sent' };
   }
 
@@ -471,6 +493,9 @@ export class AuthService {
       data: { usedAt: new Date() },
     });
 
+    // Log password reset
+    await this.auditService.logPasswordReset(resetToken.userId);
+
     return { message: 'Password reset successfully' };
   }
 
@@ -505,6 +530,9 @@ export class AuthService {
       where: { id: userId },
       data: { password: hashedPassword },
     });
+
+    // Log password change
+    await this.auditService.logPasswordChange(userId);
 
     return { message: 'Password changed successfully' };
   }

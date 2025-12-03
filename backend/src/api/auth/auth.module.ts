@@ -8,6 +8,7 @@ import { SessionController } from './controllers/session.controller';
 import { AuthService } from './services/auth.service';
 import { SessionService } from './services/session.service';
 import { EmailService } from './services/email.service';
+import { AuditService } from './services/audit.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
@@ -34,6 +35,7 @@ import { UsersModule } from '../users/users.module';
     AuthService,
     SessionService,
     EmailService,
+    AuditService,
     PrismaService,
     LocalStrategy,
     JwtStrategy,
