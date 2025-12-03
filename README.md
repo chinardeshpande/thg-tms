@@ -149,6 +149,35 @@ npm run dev
 ## API Documentation
 API documentation available at `/api/docs` when running in development mode.
 
+## AI-Assisted Development
+
+This project uses collaborative AI development with Claude Code and ChatGPT Codex.
+
+### 🤖 For AI Assistants (Claude Code / ChatGPT Codex)
+
+**📋 REQUIRED: Read these files before starting work:**
+1. **[claude.md](claude.md)** - Complete project context, architecture, and standards
+2. **[AI_HANDOFF.md](AI_HANDOFF.md)** - Current status, recent changes, and task ownership
+
+**🔄 Workflow:**
+1. `git pull origin main` - Get latest changes
+2. Read `claude.md` + `AI_HANDOFF.md` - Understand context
+3. Check "Task Ownership" table in `AI_HANDOFF.md` - Avoid conflicts
+4. Do your work on a feature branch
+5. Update `AI_HANDOFF.md` with your changes - Document for next AI
+6. Commit, push, and update task ownership
+
+**📝 File Purposes:**
+- `claude.md` = Strategic context (architecture, rarely changes)
+- `AI_HANDOFF.md` = Tactical coordination (daily handoffs, frequently updated)
+
+### 👨‍💻 For Human Developers
+
+When working with AI assistants, simply tell them:
+```
+Read claude.md and AI_HANDOFF.md first, then [your task]
+```
+
 ## Contributing
 Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details on our code of conduct and development process.
 
