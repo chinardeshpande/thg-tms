@@ -17,7 +17,7 @@ import { UsersModule } from './api/users/users.module';
 import { CompaniesModule } from './api/companies/companies.module';
 import { ShipmentsModule } from './api/shipments/shipments.module';
 import { CarriersModule } from './api/carriers/carriers.module';
-// import { RoutesModule } from './api/routes/routes.module';
+import { RoutesModule } from './api/routes/routes.module';
 // import { TrackingModule } from './api/tracking/tracking.module';
 import { BillingModule } from './api/billing/billing.module';
 // import { AnalyticsModule } from './api/analytics/analytics.module';
@@ -59,7 +59,7 @@ import { BillingModule } from './api/billing/billing.module';
     CompaniesModule,
     ShipmentsModule,
     CarriersModule,
-    // RoutesModule, // Temporarily disabled - has schema mismatches
+    RoutesModule,
     // TrackingModule, // Temporarily disabled - has schema mismatches
     BillingModule,
     // AnalyticsModule, // Temporarily disabled - has schema mismatches
