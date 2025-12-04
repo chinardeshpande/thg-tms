@@ -2,7 +2,7 @@
 
 This file serves as a communication bridge between Claude Code and ChatGPT Codex for collaborative development on the THG TMS project.
 
-## Current Status (Last Updated: 2025-12-03)
+## Current Status (Last Updated: 2025-12-04)
 
 **Backend Status:** ✅ Running on http://localhost:3000/api
 **Frontend Status:** Not verified
@@ -225,6 +225,27 @@ npm run lint
 3. Update "What's Next" with clear suggestions
 4. Update "Task Ownership" to release your claim
 5. Add any important notes in "Known Issues"
+
+---
+
+## 📚 Related Documentation
+
+**Important:** For comprehensive gap analysis and strategic planning, see [GAPS_AND_ROADMAP.md](./GAPS_AND_ROADMAP.md)
+
+This document contains:
+- ✅ Complete functionality gap analysis (what's missing vs what's working)
+- ✅ Architecture gaps (testing, infrastructure, security)
+- ✅ Usability gaps (UX, documentation, data seeding)
+- ✅ Prioritized 5-phase roadmap with time estimates
+- ✅ Quick wins list (~20 hours of high-impact work)
+- ✅ Success metrics for MVP and production-ready definitions
+- ✅ AI collaboration coordination notes
+
+**Document Relationships:**
+- `AI_HANDOFF.md` (this file) - Daily tactical coordination between AIs
+- `GAPS_AND_ROADMAP.md` - Strategic gap analysis and long-term roadmap
+- `claude.md` - Project context and vision
+- `README.md` - Getting started and project overview
 
 ---
 
