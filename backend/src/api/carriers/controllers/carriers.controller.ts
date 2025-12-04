@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Query,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -33,8 +34,8 @@ export class CarriersController {
   @ApiOperation({ summary: 'Create a new carrier' })
   @ApiResponse({ status: 201, description: 'Carrier created successfully' })
   @ApiResponse({ status: 409, description: 'Carrier already exists' })
-  create(@Body() createCarrierDto: CreateCarrierDto) {
-    return this.carriersService.create(createCarrierDto);
+  create(@Body() createCarrierDto: CreateCarrierDto, @Request() req: any) {
+    return this.carriersService.create(createCarrierDto, req.user.companyId);
   }
 
   @Get()

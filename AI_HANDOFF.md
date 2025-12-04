@@ -14,13 +14,40 @@ This file serves as a communication bridge between Claude Code and ChatGPT Codex
 - ✅ UsersModule
 - ✅ CompaniesModule
 - ✅ ShipmentsModule (re-enabled - all errors fixed!)
-- ⏸️ CarriersModule (disabled - schema mismatches)
+- ✅ CarriersModule (re-enabled - all errors fixed!)
 - ⏸️ RoutesModule (disabled - schema mismatches)
 - ⏸️ TrackingModule (disabled - schema mismatches)
-- ⏸️ BillingModule (disabled - schema mismatches)
+- ✅ BillingModule (re-enabled - all errors fixed!)
 - ⏸️ AnalyticsModule (disabled - schema mismatches)
 
 ## Recent Changes (Latest First)
+
+### 2025-12-04 - Claude Code
+**Branch:** main
+**Commit:** _pending_
+
+**What Changed:**
+- ✅ Fixed CarriersModule schema mismatch (1 error resolved)
+- ✅ Fixed BillingModule schema mismatch (1 error resolved)
+- ✅ Re-enabled both modules in `backend/src/app.module.ts`
+- Fixed `backend/src/api/carriers/services/carriers.service.ts`:
+  - Added `companyId` parameter to create method
+  - Service now requires company relation for carrier creation
+- Fixed `backend/src/api/carriers/controllers/carriers.controller.ts`:
+  - Added `@Request()` decorator to extract user from authenticated request
+  - Passes `companyId` from authenticated user to service
+- Fixed `backend/src/api/billing/services/billing.service.ts`:
+  - Changed inline address fields to Address relations
+  - `originCity`, `originCountry`, `destCity`, `destCountry` → `origin{city, country}`, `destination{city, country}`
+
+**Why:**
+CarriersModule required a `companyId` (Company relation) but the service wasn't providing it. BillingModule was trying to access inline address fields that don't exist - the schema uses normalized Address relations instead.
+
+**What's Next:**
+- 6 modules now operational: Auth, Users, Companies, Shipments, Carriers, Billing
+- Remaining errors: Analytics (~35), Routes (minimal) - still disabled
+- Tracking module being worked on by ChatGPT Codex
+- Consider fixing RoutesModule next (minimal errors)
 
 ### 2025-12-03 - Claude Code
 **Branch:** main
@@ -100,10 +127,10 @@ User reported "Authentication Failed - Failed to fetch" error. Backend wasn't co
 | User management | Available | ✅ Complete | Ready for testing |
 | Company management | Available | ✅ Complete | Ready for testing |
 | Shipments module | Available | ✅ Complete | All errors fixed, module re-enabled |
-| Carriers module | Available | 🔴 Needs fix | Schema mismatches (~1 error) |
+| Carriers module | Available | ✅ Complete | All errors fixed, module re-enabled |
 | Routes module | Available | 🔴 Needs fix | Schema mismatches (minimal) |
 | Tracking module | ChatGPT Codex | 🟡 In progress | Schema alignment/planning; will fix mismatches before re-enabling |
-| Billing module | Available | 🔴 Needs fix | Schema mismatches (~1 error) |
+| Billing module | Available | ✅ Complete | All errors fixed, module re-enabled |
 | Analytics module | Available | 🔴 Needs fix | Schema mismatches (~35 errors) |
 
 ## Known Issues

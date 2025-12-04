@@ -161,10 +161,18 @@ export class BillingService {
             customerName: true,
             customerEmail: true,
             customerPhone: true,
-            originCity: true,
-            originCountry: true,
-            destCity: true,
-            destCountry: true,
+            origin: {
+              select: {
+                city: true,
+                country: true,
+              },
+            },
+            destination: {
+              select: {
+                city: true,
+                country: true,
+              },
+            },
             totalWeight: true,
             weightUnit: true,
             declaredValue: true,

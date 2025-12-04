@@ -12,7 +12,7 @@ import { CarrierType, CarrierStatus } from '@prisma/client';
 export class CarriersService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createCarrierDto: CreateCarrierDto) {
+  async create(createCarrierDto: CreateCarrierDto, companyId: string) {
     const { code, ...rest } = createCarrierDto;
 
     // Check if carrier with code already exists
@@ -30,6 +30,7 @@ export class CarriersService {
     const carrier = await this.prisma.carrier.create({
       data: {
         code,
+        companyId,
         ...rest,
       },
       include: {
