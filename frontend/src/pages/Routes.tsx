@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { Card, CardHeader, CardContent, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import routesService, { Route as APIRoute } from '../services/routes.service';
 import {
   Search,
   Plus,
@@ -92,6 +93,32 @@ const Routes: React.FC = () => {
   const [filterMode, setFilterMode] = useState<string>('all');
   const [filterService, setFilterService] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'lanes' | 'rates' | 'optimization'>('lanes');
+  const [apiRoutes, setApiRoutes] = useState<APIRoute[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // NOTE: This page currently shows lane management mock data.
+  // The backend API focuses on route planning (driver/vehicle assignments).
+  // A future refactoring should separate "Lanes" (carrier rates/corridors)
+  // from "Routes" (actual driver routes with stops).
+
+  useEffect(() => {
+    fetchRoutes();
+  }, []);
+
+  const fetchRoutes = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await routesService.getAll(1, 20);
+      setApiRoutes(response.data);
+    } catch (err: any) {
+      console.error('Error fetching routes:', err);
+      setError(err.response?.data?.message || 'Failed to fetch routes');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [lanes] = useState<Lane[]>([
     {
@@ -488,6 +515,15 @@ const Routes: React.FC = () => {
 
   return (
     <DashboardLayout>
+      {/* API Status Notice */}
+      {error && (
+        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-sm text-yellow-800">
+            <strong>Note:</strong> Currently displaying mock lane data. API connection: {error}
+          </p>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="mb-8">
         <div className="flex justify-between items-start">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { Card, CardHeader, CardContent, CardTitle } from '../components/ui/Card';
@@ -20,32 +20,42 @@ import {
   Train,
   Filter,
 } from 'lucide-react';
-
-interface Carrier {
-  id: string;
-  name: string;
-  logo: { text: string; bg: string; color: string };
-  type: 'Air' | 'Ocean' | 'Ground' | 'Rail';
-  contactPerson: string;
-  email: string;
-  phone: string;
-  address: string;
-  rating: number;
-  activeShipments: number;
-  completedShipments: number;
-  onTimeDelivery: number;
-  status: 'active' | 'inactive';
-  serviceAreas: string[];
-  avgTransitTime: string;
-}
+import carriersService, { Carrier } from '../services/carriers.service';
 
 const Carriers: React.FC = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [carriers, setCarriers] = useState<Carrier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const [carriers] = useState<Carrier[]>([
+  // Fetch carriers from API
+  useEffect(() => {
+    fetchCarriers();
+  }, [page, filterType]);
+
+  const fetchCarriers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const type = filterType === 'all' ? undefined : filterType.toUpperCase() as any;
+      const response = await carriersService.getAll(page, 20, type, 'ACTIVE');
+      setCarriers(response.data);
+      setTotalPages(response.meta.totalPages);
+    } catch (err: any) {
+      console.error('Error fetching carriers:', err);
+      setError(err.response?.data?.message || 'Failed to fetch carriers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mock data fallback for demonstration
+  const [mockCarriers] = useState<any[]>([
     {
       id: '1',
       name: 'FedEx Express',
@@ -170,18 +180,62 @@ const Carriers: React.FC = () => {
     return colors[type] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  const filteredCarriers = carriers.filter((carrier) => {
-    const matchesType = filterType === 'all' || carrier.type === filterType;
+  // Helper function to map API carrier to UI carrier format
+  const mapCarrierToUI = (carrier: Carrier) => {
+    const typeMap: Record<string, string> = {
+      'AIR': 'Air',
+      'OCEAN': 'Ocean',
+      'GROUND': 'Ground',
+      'RAIL': 'Rail',
+    };
+
+    const logoColors: Record<string, { bg: string; color: string }> = {
+      'AIR': { bg: 'bg-blue-600', color: 'text-white' },
+      'OCEAN': { bg: 'bg-cyan-700', color: 'text-white' },
+      'GROUND': { bg: 'bg-green-600', color: 'text-white' },
+      'RAIL': { bg: 'bg-purple-600', color: 'text-white' },
+    };
+
+    return {
+      ...carrier,
+      type: typeMap[carrier.type] || carrier.type,
+      logo: {
+        text: carrier.code.substring(0, 3).toUpperCase(),
+        ...logoColors[carrier.type],
+      },
+      contactPerson: carrier.contactName,
+      email: carrier.contactEmail,
+      phone: carrier.contactPhone,
+      rating: carrier.rating || 4.5,
+      activeShipments: 0, // TODO: Get from backend
+      completedShipments: 0, // TODO: Get from backend
+      onTimeDelivery: 95.0, // TODO: Get from backend
+      status: carrier.status.toLowerCase(),
+      serviceAreas: [], // TODO: Get from backend
+      avgTransitTime: '1-3 days', // TODO: Get from backend
+    };
+  };
+
+  // Use API carriers if available, otherwise use mock data
+  const displayCarriers = carriers.length > 0
+    ? carriers.map(mapCarrierToUI)
+    : mockCarriers;
+
+  const filteredCarriers = displayCarriers.filter((carrier: any) => {
     const matchesSearch =
       carrier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       carrier.contactPerson.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesType && matchesSearch;
+    return matchesSearch;
   });
 
-  const totalActiveShipments = carriers.reduce((sum, c) => sum + c.activeShipments, 0);
-  const averageRating = (carriers.reduce((sum, c) => sum + c.rating, 0) / carriers.length).toFixed(1);
-  const averageOnTime = (carriers.reduce((sum, c) => sum + c.onTimeDelivery, 0) / carriers.length).toFixed(1);
-  const activeCarriers = carriers.filter(c => c.status === 'active').length;
+  const totalActiveShipments = filteredCarriers.reduce((sum: number, c: any) => sum + c.activeShipments, 0);
+  const averageRating = filteredCarriers.length > 0
+    ? (filteredCarriers.reduce((sum: number, c: any) => sum + c.rating, 0) / filteredCarriers.length).toFixed(1)
+    : '0.0';
+  const averageOnTime = filteredCarriers.length > 0
+    ? (filteredCarriers.reduce((sum: number, c: any) => sum + c.onTimeDelivery, 0) / filteredCarriers.length).toFixed(1)
+    : '0.0';
+  const activeCarriers = filteredCarriers.filter((c: any) => c.status === 'active').length;
 
   return (
     <DashboardLayout>
@@ -312,9 +366,43 @@ const Carriers: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Loading State */}
+      {loading && (
+        <Card>
+          <CardContent className="py-16">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+                <TruckIcon className="w-8 h-8 text-gray-400" />
+              </div>
+              <p className="text-gray-900 font-semibold text-lg mb-2">Loading carriers...</p>
+              <p className="text-sm text-gray-500">Please wait while we fetch the data</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <Card>
+          <CardContent className="py-16">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <TruckIcon className="w-8 h-8 text-red-600" />
+              </div>
+              <p className="text-gray-900 font-semibold text-lg mb-2">Error loading carriers</p>
+              <p className="text-sm text-red-600 mb-6">{error}</p>
+              <Button variant="primary" onClick={fetchCarriers}>
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Carriers Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredCarriers.map((carrier) => (
+      {!loading && !error && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredCarriers.map((carrier: any) => (
           <Card key={carrier.id} className="hover:shadow-xl transition-all duration-300 cursor-pointer group">
             <CardContent className="p-6">
               {/* Header with Logo */}
@@ -419,11 +507,12 @@ const Carriers: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Empty State */}
-      {filteredCarriers.length === 0 && (
+      {!loading && !error && filteredCarriers.length === 0 && (
         <Card>
           <CardContent className="py-16">
             <div className="text-center">
